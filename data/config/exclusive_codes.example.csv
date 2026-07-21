@@ -1,0 +1,3 @@
+partner,publisher_id,exclusive_codes,code_match,enabled,note
+Example Partner,,"EXAMPLE15,EXAMPLE20",exact,true,示例行：请改成真实媒体与独家 code；code_match 可选 exact / prefix / none
+Example Prefix Partner,,PREFIX,prefix,true,前缀匹配示例：订单折扣码以 PREFIX 开头即命中
