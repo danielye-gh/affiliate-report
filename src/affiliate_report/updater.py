@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -80,22 +81,57 @@ def resolve_branch() -> str:
     return os.getenv("UPDATE_BRANCH", "").strip() or DEFAULT_BRANCH
 
 
+def _ssl_contexts() -> list[ssl.SSLContext]:
+    """按优先级返回可尝试的 SSL 上下文。
+
+    - certifi（httpx 依赖，必定安装）：解决 macOS/Windows 系统根证书缺失
+    - 系统证书库：解决公司网络 SSL 拦截代理（自签 CA 装在系统里，certifi 不认）
+    """
+    contexts = []
+    try:
+        import certifi
+
+        contexts.append(ssl.create_default_context(cafile=certifi.where()))
+    except ImportError:
+        pass
+    contexts.append(ssl.create_default_context())
+    return contexts
+
+
 def _download_zip(repo: str, branch: str, dest: Path, log) -> None:
     url = f"https://codeload.github.com/{repo}/zip/refs/heads/{branch}"
     log(f"下载 {url} ...\n")
     request = Request(url, headers={"User-Agent": "affiliate-report-updater"})
-    try:
-        with urlopen(request, timeout=120) as resp, open(dest, "wb") as fh:
-            shutil.copyfileobj(resp, fh)
-    except HTTPError as exc:
-        if exc.code == 404:
-            raise UpdateError(
-                f"GitHub 上找不到 {repo} 的 {branch} 分支（HTTP 404）。"
-                "请检查 UPDATE_REPO / UPDATE_BRANCH 配置，且仓库必须是 public。"
-            ) from exc
-        raise UpdateError(f"下载失败：HTTP {exc.code}") from exc
-    except URLError as exc:
-        raise UpdateError(f"网络错误，无法访问 GitHub：{exc.reason}") from exc
+
+    contexts = _ssl_contexts()
+    last_exc: Exception | None = None
+    for i, context in enumerate(contexts):
+        try:
+            with urlopen(request, timeout=120, context=context) as resp, open(dest, "wb") as fh:
+                shutil.copyfileobj(resp, fh)
+            return
+        except HTTPError as exc:
+            if exc.code == 404:
+                raise UpdateError(
+                    f"GitHub 上找不到 {repo} 的 {branch} 分支（HTTP 404）。"
+                    "请检查 UPDATE_REPO / UPDATE_BRANCH 配置，且仓库必须是 public。"
+                ) from exc
+            raise UpdateError(f"下载失败：HTTP {exc.code}") from exc
+        except URLError as exc:
+            last_exc = exc
+            is_ssl = isinstance(exc.reason, ssl.SSLError)
+            if is_ssl and i < len(contexts) - 1:
+                log("证书校验失败，改用系统证书库重试 ...\n")
+                continue
+            break
+
+    reason = getattr(last_exc, "reason", last_exc)
+    if isinstance(reason, ssl.SSLError):
+        raise UpdateError(
+            f"SSL 证书校验失败：{reason}\n"
+            "若在公司网络/代理环境，请联系 IT；或检查系统时间是否正确。"
+        ) from last_exc
+    raise UpdateError(f"网络错误，无法访问 GitHub：{reason}") from last_exc
 
 
 def _should_skip(rel: Path) -> bool:
