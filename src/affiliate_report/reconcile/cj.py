@@ -182,16 +182,20 @@ def _match_row(
         return empty
 
     discount_code = (shopify.discount_code or "").strip()
+    # Order exists in Shopify: always fill refund fields (utm match is separate).
+    refund_fields = {
+        "shopify是否退款": shopify.refund_status,
+        "shopify退款金额": shopify.refund_amount_cell,
+        "discount code": discount_code,
+    }
     if not shopify.matches_utm_source(utm_source):
-        return {**empty, "discount code": discount_code}
+        return {**empty, **refund_fields}
 
     return {
         "Shopify匹配": shopify.oid,
         "Shopify匹配情况": "匹配",
-        "shopify是否退款": shopify.refund_status,
-        "shopify退款金额": shopify.refund_amount_cell,
+        **refund_fields,
         "20开头OID-Shopify": shopify.oid,
-        "discount code": discount_code,
         "Impact匹配": "",
         "Action": "",
     }
