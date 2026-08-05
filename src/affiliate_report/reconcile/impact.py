@@ -21,6 +21,7 @@ IMPACT_MATCH_COLUMNS = [
     "shopify匹配",
     "匹配情况",
     "shopify是否退款",
+    "shopify退款金额",
     "62开头OID-shopify",
     "attribution",
     "discount code",
@@ -172,7 +173,8 @@ def _match_row(
     return {
         "shopify匹配": shopify.oid,
         "匹配情况": "匹配",
-        "shopify是否退款": "0" if shopify.has_refund else "1",
+        "shopify是否退款": shopify.refund_status,
+        "shopify退款金额": shopify.refund_amount_cell,
         "62开头OID-shopify": shopify.order_id,
         "attribution": attribution,
         "discount code": discount_code,

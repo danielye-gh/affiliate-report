@@ -2,9 +2,50 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from affiliate_report.config import RAW_DIR
+
+# shopify是否退款 values (only set when Shopify match succeeds):
+#   "0" = no refund, "1" = full refund, "2" = partial refund
+REFUND_NONE = "0"
+REFUND_FULL = "1"
+REFUND_PARTIAL = "2"
+REFUND_STATUSES = frozenset({REFUND_FULL, REFUND_PARTIAL})
+
+
+def is_shopify_refunded(value: object) -> bool:
+    """True when shopify是否退款 is full (1) or partial (2)."""
+    return str(value or "").strip() in REFUND_STATUSES
+
+
+def _parse_money(value: object) -> Decimal:
+    text = str(value or "").strip().replace(",", "").replace("$", "")
+    if not text or text.lower() in {"nan", "none", "n/a"}:
+        return Decimal("0")
+    try:
+        return Decimal(text)
+    except InvalidOperation:
+        return Decimal("0")
+
+
+def classify_refund_status(order_net_sales: Decimal, refund_amount: Decimal) -> str:
+    """Classify refund using remaining order net sales vs refunded total.
+
+    Shopify ``currentSubtotalPriceSet`` is post-refund, so remaining ≈ 0 means full.
+    """
+    if refund_amount <= 0:
+        return REFUND_NONE
+    if order_net_sales <= 0:
+        return REFUND_FULL
+    return REFUND_PARTIAL
+
+
+def format_refund_amount(amount: Decimal) -> str:
+    if amount <= 0:
+        return ""
+    return format(amount, ".2f")
 
 
 @dataclass(frozen=True)
@@ -14,9 +55,15 @@ class ShopifyOrderIdMatch:
     utm_source: str | None
     has_refund: bool
     discount_code: str = ""
+    refund_amount: Decimal = Decimal("0")
+    refund_status: str = REFUND_NONE
 
     def matches_utm_source(self, expected: str) -> bool:
         return (self.utm_source or "").strip().lower() == expected.strip().lower()
+
+    @property
+    def refund_amount_cell(self) -> str:
+        return format_refund_amount(self.refund_amount)
 
 
 @dataclass(frozen=True)
@@ -26,9 +73,15 @@ class ShopifyOidMatch:
     utm_source: str | None
     has_refund: bool
     discount_code: str = ""
+    refund_amount: Decimal = Decimal("0")
+    refund_status: str = REFUND_NONE
 
     def matches_utm_source(self, expected: str) -> bool:
         return (self.utm_source or "").strip().lower() == expected.strip().lower()
+
+    @property
+    def refund_amount_cell(self) -> str:
+        return format_refund_amount(self.refund_amount)
 
 
 def _row_discount_code(row: dict) -> str:
@@ -41,7 +94,7 @@ def load_shopify_oid_index(raw_path: Path) -> dict[str, ShopifyOidMatch]:
         rows = json.load(f)
 
     orders: dict[str, dict] = {}
-    refunds: set[str] = set()
+    refund_totals: dict[str, Decimal] = {}
 
     for row in rows:
         oid = str(row.get("oid") or "").strip()
@@ -50,7 +103,7 @@ def load_shopify_oid_index(raw_path: Path) -> dict[str, ShopifyOidMatch]:
 
         row_kind = str(row.get("rowKind") or "order").strip().lower()
         if row_kind == "refund":
-            refunds.add(oid)
+            refund_totals[oid] = refund_totals.get(oid, Decimal("0")) + abs(_parse_money(row.get("netSales")))
             continue
 
         if row_kind != "order":
@@ -60,6 +113,7 @@ def load_shopify_oid_index(raw_path: Path) -> dict[str, ShopifyOidMatch]:
             "order_id": str(row.get("orderId") or "").strip(),
             "utm_source": row.get("orderUtmSource"),
             "discount_code": _row_discount_code(row),
+            "net_sales": _parse_money(row.get("netSales")),
         }
 
     index: dict[str, ShopifyOidMatch] = {}
@@ -67,12 +121,16 @@ def load_shopify_oid_index(raw_path: Path) -> dict[str, ShopifyOidMatch]:
         order_id = info["order_id"]
         if not order_id:
             continue
+        refund_amount = refund_totals.get(oid, Decimal("0"))
+        refund_status = classify_refund_status(info["net_sales"], refund_amount)
         index[oid] = ShopifyOidMatch(
             oid=oid,
             order_id=order_id,
             utm_source=info["utm_source"],
-            has_refund=oid in refunds,
+            has_refund=refund_status in REFUND_STATUSES,
             discount_code=info["discount_code"],
+            refund_amount=refund_amount,
+            refund_status=refund_status,
         )
 
     return index
@@ -84,7 +142,7 @@ def load_shopify_order_id_index(raw_path: Path) -> dict[str, ShopifyOrderIdMatch
         rows = json.load(f)
 
     orders: dict[str, dict] = {}
-    refunds: set[str] = set()
+    refund_totals: dict[str, Decimal] = {}
 
     for row in rows:
         order_id = str(row.get("orderId") or "").strip()
@@ -94,7 +152,9 @@ def load_shopify_order_id_index(raw_path: Path) -> dict[str, ShopifyOrderIdMatch
 
         row_kind = str(row.get("rowKind") or "order").strip().lower()
         if row_kind == "refund":
-            refunds.add(order_id)
+            refund_totals[order_id] = refund_totals.get(order_id, Decimal("0")) + abs(
+                _parse_money(row.get("netSales"))
+            )
             continue
 
         if row_kind != "order":
@@ -104,16 +164,21 @@ def load_shopify_order_id_index(raw_path: Path) -> dict[str, ShopifyOrderIdMatch
             "oid": oid,
             "utm_source": row.get("orderUtmSource"),
             "discount_code": _row_discount_code(row),
+            "net_sales": _parse_money(row.get("netSales")),
         }
 
     index: dict[str, ShopifyOrderIdMatch] = {}
     for order_id, info in orders.items():
+        refund_amount = refund_totals.get(order_id, Decimal("0"))
+        refund_status = classify_refund_status(info["net_sales"], refund_amount)
         index[order_id] = ShopifyOrderIdMatch(
             order_id=order_id,
             oid=info["oid"],
             utm_source=info["utm_source"],
-            has_refund=order_id in refunds,
+            has_refund=refund_status in REFUND_STATUSES,
             discount_code=info["discount_code"],
+            refund_amount=refund_amount,
+            refund_status=refund_status,
         )
 
     return index

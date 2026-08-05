@@ -24,6 +24,7 @@ CJ_MATCH_COLUMNS = [
     "Shopify匹配",
     "Shopify匹配情况",
     "shopify是否退款",
+    "shopify退款金额",
     "20开头OID-Shopify",
     "discount code",
     "Impact匹配",
@@ -187,7 +188,8 @@ def _match_row(
     return {
         "Shopify匹配": shopify.oid,
         "Shopify匹配情况": "匹配",
-        "shopify是否退款": "0" if shopify.has_refund else "1",
+        "shopify是否退款": shopify.refund_status,
+        "shopify退款金额": shopify.refund_amount_cell,
         "20开头OID-Shopify": shopify.oid,
         "discount code": discount_code,
         "Impact匹配": "",

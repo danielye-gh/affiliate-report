@@ -145,7 +145,7 @@ affiliate-report process awin --year 2026 --month 5 --site de
 | 优先级 | 条件 | Action |
 |--------|------|--------|
 | 1 | 佣金为 0（Impact `Action Cost`、CJ `CJ Fee (USD)`、Awin `commission`） | `通过` |
-| 2 | 佣金 ≠ 0 且 `shopify是否退款` = `0`（有退款） | `取消` |
+| 2 | 佣金 ≠ 0 且 `shopify是否退款` 为 `1`（全额）或 `2`（部分） | `取消` |
 | 3a | 佣金 ≠ 0、未退款，且 Shopify 匹配成功 | `通过` |
 | 3b | 佣金 ≠ 0、未退款，且使用了该媒体独家折扣码（`exclusive_codes.csv`） | `通过` |
 | 3c | 该媒体订单量 `Total ≤ 2`：尚未判定的订单全部 `通过` | `通过` |
@@ -153,7 +153,9 @@ affiliate-report process awin --year 2026 --month 5 --site de
 | 3e | 其余尚未判定的订单 | `取消` |
 
 说明：
-- `shopify是否退款`：`1` = 未退款，`0` = 有退款，空 = 未完整匹配（不视为已退款）。
+- `shopify是否退款`（仅完整匹配时填写）：`0` = 未退款，`1` = 全额退款，`2` = 部分退款，空 = 未完整匹配（不视为已退款）。Action 对 `1`/`2` 同等按「有退款」处理。
+- `shopify退款金额`：匹配成功且有退款时填写退款合计（多笔退款相加）；未退款或未匹配为空。
+- 全额/部分判定：订单当前 `netSales`（Shopify `currentSubtotalPriceSet`，已扣退款）≤ 0 为全额，否则为部分。
 - 独家 code 以 **Shopify 订单折扣码**（`discountCode`）为准；仅对 CSV 中列出的媒体补 `通过`，不再单独整媒体覆盖。
 - 订单量规则不会覆盖优先级 1/2 已定的结果（如有退款的非零佣金仍为 `取消`）。
 - Total > 5 时不做 3c/3d 补通过；未匹配且无独家 code 的订单最终为 `取消`（零佣金 / ≤2 单媒体除外）。

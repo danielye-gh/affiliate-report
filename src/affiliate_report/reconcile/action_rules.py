@@ -5,10 +5,10 @@ from decimal import Decimal
 import pandas as pd
 
 from affiliate_report.reconcile.formatting import parse_commission
+from affiliate_report.reconcile.shopify import is_shopify_refunded
 
 ACTION_PASS = "通过"
 ACTION_CANCEL = "取消"
-REFUND_FLAG = "0"
 
 
 def normalize_partner_name(value: object) -> str:
@@ -127,7 +127,7 @@ def _is_refund_with_positive_commission(
     commission_column: str,
     refund_column: str,
 ) -> bool:
-    if refund_column not in row.index or str(row[refund_column]).strip() != REFUND_FLAG:
+    if refund_column not in row.index or not is_shopify_refunded(row[refund_column]):
         return False
     if commission_column not in row.index:
         return False

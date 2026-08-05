@@ -4,6 +4,8 @@ from decimal import Decimal, InvalidOperation
 
 import pandas as pd
 
+from affiliate_report.reconcile.shopify import is_shopify_refunded
+
 
 def parse_commission(value: object) -> Decimal:
     text = str(value or "").strip().replace(",", "").replace("$", "")
@@ -76,7 +78,7 @@ def apply_shopify_action_column(
     """Set base Action by priority:
 
     1. Commission == 0 -> 通过
-    2. Commission != 0 and shopify是否退款 == 0 -> 取消
+    2. Commission != 0 and shopify是否退款 in {1全额, 2部分} -> 取消
     3. Matched (remaining) -> 通过
     """
     result = df.copy()
@@ -91,8 +93,8 @@ def apply_shopify_action_column(
         result.loc[zero_commission, action_column] = "通过"
 
     if refund_column in result.columns:
-        refunded_nonzero = (result[refund_column] == "0") & ~zero_commission
-        result.loc[refunded_nonzero, action_column] = "取消"
+        refunded = result[refund_column].map(is_shopify_refunded)
+        result.loc[refunded & ~zero_commission, action_column] = "取消"
 
     if match_column in result.columns:
         matched_empty = (result[action_column] == "") & (result[match_column] == match_value)
