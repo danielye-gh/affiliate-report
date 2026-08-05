@@ -7,7 +7,11 @@ import pandas as pd
 from affiliate_report.config import PROCESSED_DIR, RAW_DIR
 from affiliate_report.exclusive_codes import apply_exclusive_code_action_rules
 from affiliate_report.reconcile.action_rules import apply_partner_volume_action_rules
-from affiliate_report.reconcile.formatting import apply_shopify_action_column, format_decimal_columns
+from affiliate_report.reconcile.formatting import (
+    apply_shopify_action_column,
+    finalize_action_column,
+    format_decimal_columns,
+)
 from affiliate_report.reconcile.shopify import (
     load_oid_indexes_for_process,
     lookup_oid_match,
@@ -86,17 +90,18 @@ def enrich_impact_with_shopify(
     enriched = pd.concat([impact_df, match_df], axis=1)
     enriched = format_decimal_columns(enriched[IMPACT_OUTPUT_COLUMNS], IMPACT_DECIMAL_COLUMNS)
     enriched = apply_shopify_action_column(enriched, commission_column="Action Cost")
-    enriched = apply_partner_volume_action_rules(
-        enriched,
-        partner_column="Partner",
-        commission_column="Action Cost",
-    )
-    return apply_exclusive_code_action_rules(
+    enriched = apply_exclusive_code_action_rules(
         enriched,
         partner_column="Partner",
         publisher_id_column="Partner Id",
         promo_column="discount code",
     )
+    enriched = apply_partner_volume_action_rules(
+        enriched,
+        partner_column="Partner",
+        commission_column="Action Cost",
+    )
+    return finalize_action_column(enriched)
 
 
 def process_impact_month(

@@ -26,7 +26,14 @@ def apply_partner_volume_action_rules(
     refund_column: str = "shopify是否退款",
     action_column: str = "Action",
 ) -> pd.DataFrame:
-    """Apply small-volume partner pass rules on top of base Shopify action logic."""
+    """Apply small-volume partner pass rules on unresolved Action rows.
+
+    - Total ≤ 2: pass all unresolved rows (except refunded + positive commission)
+    - 2 < Total ≤ 5: top up passes to ≥50%, preferring low commission
+    - Total > 5: unchanged
+
+    Never overrides existing 通过 / 取消 from higher-priority rules.
+    """
     if df.empty or partner_column not in df.columns or action_column not in df.columns:
         return df
 
@@ -68,12 +75,13 @@ def _apply_small_partner_rule(
     action_column: str,
 ) -> None:
     for idx in df.index[group_mask]:
+        if str(df.at[idx, action_column] or "").strip() != "":
+            continue
         if _is_refund_with_positive_commission(
             df.loc[idx], commission_column=commission_column, refund_column=refund_column
         ):
-            df.at[idx, action_column] = ACTION_CANCEL
-        else:
-            df.at[idx, action_column] = ACTION_PASS
+            continue
+        df.at[idx, action_column] = ACTION_PASS
 
 
 def _apply_medium_partner_rule(
@@ -92,7 +100,8 @@ def _apply_medium_partner_rule(
     if needed == 0:
         return
 
-    candidates = group[group[action_column] != ACTION_PASS]
+    # Prefer unresolved rows; skip refunded + positive commission.
+    candidates = group[group[action_column].map(lambda v: str(v or "").strip() == "")]
     eligible_idx = [
         idx
         for idx in candidates.index

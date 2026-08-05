@@ -20,6 +20,7 @@ from affiliate_report.exclusive_codes import apply_exclusive_code_action_rules
 from affiliate_report.reconcile.action_rules import apply_partner_volume_action_rules
 from affiliate_report.reconcile.formatting import (
     apply_shopify_action_column,
+    finalize_action_column,
     format_bool_cell,
     format_datetime_cell,
     format_decimal_columns,
@@ -121,17 +122,18 @@ def enrich_awin_with_shopify(
         _lapse_time_to_minutes
     )
     enriched = apply_shopify_action_column(enriched, commission_column="commission")
-    enriched = apply_partner_volume_action_rules(
-        enriched,
-        partner_column="publisher",
-        commission_column="commission",
-    )
-    return apply_exclusive_code_action_rules(
+    enriched = apply_exclusive_code_action_rules(
         enriched,
         partner_column="publisher",
         publisher_id_column="publisher_id",
         promo_column="discount code",
     )
+    enriched = apply_partner_volume_action_rules(
+        enriched,
+        partner_column="publisher",
+        commission_column="commission",
+    )
+    return finalize_action_column(enriched)
 
 
 def process_awin_month(

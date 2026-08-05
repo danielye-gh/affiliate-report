@@ -10,6 +10,7 @@ from affiliate_report.exclusive_codes import apply_exclusive_code_action_rules
 from affiliate_report.reconcile.action_rules import apply_partner_volume_action_rules
 from affiliate_report.reconcile.formatting import (
     apply_shopify_action_column,
+    finalize_action_column,
     format_bool_cell,
     format_datetime_cell,
     format_decimal_columns,
@@ -103,18 +104,19 @@ def enrich_cj_with_shopify(
         match_column="Shopify匹配情况",
         commission_column="CJ Fee (USD)",
     )
-    enriched = apply_partner_volume_action_rules(
-        enriched,
-        partner_column="Website Name",
-        commission_column="CJ Fee (USD)",
-    )
-    return apply_exclusive_code_action_rules(
+    enriched = apply_exclusive_code_action_rules(
         enriched,
         partner_column="Website Name",
         publisher_id_column="Publisher CID",
         promo_column="discount code",
         match_column="Shopify匹配情况",
     )
+    enriched = apply_partner_volume_action_rules(
+        enriched,
+        partner_column="Website Name",
+        commission_column="CJ Fee (USD)",
+    )
+    return finalize_action_column(enriched)
 
 
 def process_cj_month(

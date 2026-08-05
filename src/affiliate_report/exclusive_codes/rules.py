@@ -10,8 +10,6 @@ from affiliate_report.exclusive_codes.store import (
 )
 
 ACTION_PASS = "通过"
-ACTION_CANCEL = "取消"
-REFUND_FLAG = "0"
 
 
 def promo_uses_exclusive_code(promo: object, rule: ExclusiveCodeRule) -> bool:
@@ -72,11 +70,16 @@ def apply_exclusive_code_action_rules(
     match_value: str = "匹配",
     rules: list[ExclusiveCodeRule] | None = None,
 ) -> pd.DataFrame:
-    """Override Action for configured media partners.
+    """Pass unresolved rows that used a configured exclusive discount code.
 
-    Pass when: (matched and not refunded) OR (used exclusive code).
-    Otherwise cancel. Partners not in the CSV are left unchanged.
+    Only partners listed in exclusive_codes.csv are considered. Does not cancel
+    other rows (finalize step handles remaining empties). Never overrides 取消.
+
+    ``match_column`` / ``refund_column`` / ``match_value`` are retained for
+    call-site compatibility; match/refund passes are handled earlier.
     """
+    _ = (match_column, refund_column, match_value)
+
     if df.empty or action_column not in df.columns:
         return df
     if partner_column not in df.columns:
@@ -89,6 +92,9 @@ def apply_exclusive_code_action_rules(
     result = df.copy()
     for idx in result.index:
         row = result.loc[idx]
+        if str(row.get(action_column, "")).strip() != "":
+            continue
+
         publisher_id = row[publisher_id_column] if publisher_id_column and publisher_id_column in result.columns else ""
         rule = find_matching_rule(
             partner=row[partner_column],
@@ -98,14 +104,8 @@ def apply_exclusive_code_action_rules(
         if rule is None:
             continue
 
-        matched = match_column in result.columns and str(row.get(match_column, "")).strip() == match_value
-        refunded = refund_column in result.columns and str(row.get(refund_column, "")).strip() == REFUND_FLAG
         promo = row[promo_column] if promo_column in result.columns else ""
-        used_code = promo_uses_exclusive_code(promo, rule)
-
-        if (matched and not refunded) or used_code:
+        if promo_uses_exclusive_code(promo, rule):
             result.at[idx, action_column] = ACTION_PASS
-        else:
-            result.at[idx, action_column] = ACTION_CANCEL
 
     return result

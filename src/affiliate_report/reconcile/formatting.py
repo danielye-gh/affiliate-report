@@ -73,17 +73,44 @@ def apply_shopify_action_column(
     commission_column: str | None = None,
     match_value: str = "匹配",
 ) -> pd.DataFrame:
-    """Set Action: 匹配/佣金为0 -> 通过; shopify是否退款=0 -> 取消 (overrides 通过)."""
+    """Set base Action by priority:
+
+    1. Commission == 0 -> 通过
+    2. Commission != 0 and shopify是否退款 == 0 -> 取消
+    3. Matched (remaining) -> 通过
+    """
     result = df.copy()
     if action_column not in result.columns:
         return result
 
     result[action_column] = ""
-    if match_column in result.columns:
-        result.loc[result[match_column] == match_value, action_column] = "通过"
+
+    zero_commission = pd.Series(False, index=result.index)
     if commission_column and commission_column in result.columns:
         zero_commission = result[commission_column].map(is_zero_commission)
         result.loc[zero_commission, action_column] = "通过"
+
     if refund_column in result.columns:
-        result.loc[result[refund_column] == "0", action_column] = "取消"
+        refunded_nonzero = (result[refund_column] == "0") & ~zero_commission
+        result.loc[refunded_nonzero, action_column] = "取消"
+
+    if match_column in result.columns:
+        matched_empty = (result[action_column] == "") & (result[match_column] == match_value)
+        result.loc[matched_empty, action_column] = "通过"
+
+    return result
+
+
+def finalize_action_column(
+    df: pd.DataFrame,
+    *,
+    action_column: str = "Action",
+    cancel_value: str = "取消",
+) -> pd.DataFrame:
+    """Cancel any rows whose Action is still unresolved."""
+    result = df.copy()
+    if action_column not in result.columns:
+        return result
+    unresolved = result[action_column].map(lambda v: str(v or "").strip() == "")
+    result.loc[unresolved, action_column] = cancel_value
     return result

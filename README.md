@@ -140,32 +140,23 @@ affiliate-report process awin --year 2026 --month 5 --site de
 
 ### Action 列规则
 
-**基础规则**（所有订单）：
+按优先级依次处理（后一步不会覆盖更高优先级已定的结果）：
 
-| 条件 | Action |
-|------|--------|
-| Shopify 匹配成功 | `通过` |
-| 佣金为 0（Impact `Action Cost`、CJ `CJ Fee (USD)`、Awin `commission`） | `通过` |
-| `shopify是否退款` = `0`（有退款） | `取消`（覆盖 `通过`） |
+| 优先级 | 条件 | Action |
+|--------|------|--------|
+| 1 | 佣金为 0（Impact `Action Cost`、CJ `CJ Fee (USD)`、Awin `commission`） | `通过` |
+| 2 | 佣金 ≠ 0 且 `shopify是否退款` = `0`（有退款） | `取消` |
+| 3a | 佣金 ≠ 0、未退款，且 Shopify 匹配成功 | `通过` |
+| 3b | 佣金 ≠ 0、未退款，且使用了该媒体独家折扣码（`exclusive_codes.csv`） | `通过` |
+| 3c | 该媒体订单量 `Total ≤ 2`：尚未判定的订单全部 `通过` | `通过` |
+| 3d | 该媒体订单量 `2 < Total ≤ 5`：保证通过率 ≥ 50%（`ceil(Total/2)`）；在已有 `通过` 基础上补足，优先通过佣金最低且尚未判定的订单 | `通过` |
+| 3e | 其余尚未判定的订单 | `取消` |
 
-**按媒体订单量追加规则**（以 Summary 中该 Partner/Website/publisher 的 Total 为准）：
-
-| Total | 规则 |
-|-------|------|
-| ≤ 2 | 该媒体下所有订单设为 `通过`，**除**「有退款且佣金 > 0」 |
-| 3 ~ 5 | 保证通过率 ≥ 50%（`ceil(Total/2)` 单通过）；在已有 `通过` 基础上补足，优先通过佣金最低的订单；「有退款且佣金 > 0」不补通过 |
-
-`shopify是否退款`：`1` = 未退款，`0` = 有退款。
-
-**独家 Code 媒体规则**（`data/config/exclusive_codes.csv` 中列出的媒体，覆盖上面的量级规则）：
-
-| 条件 | Action |
-|------|--------|
-| Shopify 匹配且未退款 | `通过` |
-| Shopify 订单的 `discount code` 命中配置的独家 code（不区分大小写；`prefix` 为前缀匹配） | `通过` |
-| 其余 | `取消` |
-
-说明：独家 code 以 **Shopify 订单折扣码**（`discountCode`）为准，不再用 Impact `Promo Code` / CJ `Coupon` / Awin `voucher_code`。
+说明：
+- `shopify是否退款`：`1` = 未退款，`0` = 有退款，空 = 未完整匹配（不视为已退款）。
+- 独家 code 以 **Shopify 订单折扣码**（`discountCode`）为准；仅对 CSV 中列出的媒体补 `通过`，不再单独整媒体覆盖。
+- 订单量规则不会覆盖优先级 1/2 已定的结果（如有退款的非零佣金仍为 `取消`）。
+- Total > 5 时不做 3c/3d 补通过；未匹配且无独家 code 的订单最终为 `取消`（零佣金 / ≤2 单媒体除外）。
 
 本地 CSV 可离线编辑；配置了飞书应用后可用：
 
