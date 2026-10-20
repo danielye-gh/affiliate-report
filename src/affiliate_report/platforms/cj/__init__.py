@@ -1,3 +1,9 @@
+"""CJ platform client.
+
+Currently disabled in monthly report / CLI (search ``CJ disabled`` to re-enable).
+This module is kept intact for a future restart.
+"""
+
 from __future__ import annotations
 
 import json

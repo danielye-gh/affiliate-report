@@ -1,6 +1,8 @@
 # Affiliate Report
 
-从 **Impact、CJ、Awin** 等联盟平台及 **Shopify** 拉取月度 Actions（转化/交易）报表，与 Shopify 订单归因对账，并导出审单用 Excel 工作簿。
+从 **Impact、Awin** 等联盟平台及 **Shopify** 拉取月度 Actions（转化/交易）报表，与 Shopify 订单归因对账，并导出审单用 Excel 工作簿。
+
+> **CJ 已停用**：月报流水线与 CLI 中的 CJ 拉取/对账已注释；`platforms/cj`、`reconcile/cj` 等代码仍保留，恢复时按源码中 `CJ disabled` 注释取消即可。
 
 ## 项目结构
 
@@ -9,7 +11,7 @@ src/affiliate_report/
 ├── base/                 # 各平台共享抽象接口
 ├── platforms/
 │   ├── impact/           # Impact API（ReportExport + Actions）
-│   ├── cj/               # CJ Commission Detail GraphQL API
+│   ├── cj/               # CJ Commission Detail GraphQL API（已停用，代码保留）
 │   ├── awin/             # Awin Advertiser Transaction API（DE / UK）
 │   └── shopify/          # Shopify Sales Attribution + UTM 联盟订单
 ├── preprocess/           # 各平台原始数据 → 标准 parquet
@@ -91,17 +93,17 @@ affiliate-report report --year 2026 --month 5 --output data/reports/my_report.xl
 | Sheet | 内容 |
 |-------|------|
 | `Impact-Summary` | Impact 按 Partner 匹配汇总 |
-| `CJ-Summary` | CJ 按 Website Name 匹配汇总 |
+| ~~`CJ-Summary`~~ | （CJ 已停用） |
 | `Awin-DE-Summary` | Awin DE 按 publisher 匹配汇总 |
 | `Awin-UK-Summary` | Awin UK 按 publisher 匹配汇总 |
 | `Impact` | Impact 对账表 |
-| `CJ` | CJ 对账表 |
+| ~~`CJ`~~ | （CJ 已停用） |
 | `Awin-DE` | Awin 德国 |
 | `Awin-UK` | Awin 英国 |
 | `sales_attribution-us` | Shopify US 全量订单 |
 | `sales_attribution-de` | Shopify DE 全量订单 |
 | `sales_attribution-uk` | Shopify UK 全量订单 |
-| `cj-shopify` | CJ 联盟订单（US+DE+UK，含 `site` 列） |
+| ~~`cj-shopify`~~ | （CJ 已停用；`--report all` 不再拉取） |
 | `impact-shopify` | Impact 联盟订单（US+DE+UK） |
 | `awin-shopify` | Awin 联盟订单（US+DE+UK） |
 
@@ -115,7 +117,7 @@ affiliate-report report --year 2026 --month 5 --output data/reports/my_report.xl
 
 ```bash
 affiliate-report process impact --year 2026 --month 5
-affiliate-report process cj --year 2026 --month 5
+# affiliate-report process cj --year 2026 --month 5  # CJ 已停用
 affiliate-report process awin --year 2026 --month 5
 affiliate-report process awin --year 2026 --month 5 --site de
 ```
@@ -125,7 +127,7 @@ affiliate-report process awin --year 2026 --month 5 --site de
 | 平台 | 路径 |
 |------|------|
 | Impact | `data/processed/impact/impact_actions_2026-05_enriched.csv` |
-| CJ | `data/processed/cj/cj_actions_2026-05_enriched.csv` |
+| ~~CJ~~ | （已停用） |
 | Awin | `data/processed/awin/awin_actions_2026-05_{de,uk}_enriched.csv` |
 
 ### Shopify 匹配规则
@@ -133,10 +135,10 @@ affiliate-report process awin --year 2026 --month 5 --site de
 | 平台 | 匹配键 | Shopify 数据源 |
 |------|--------|----------------|
 | Impact | `OID`（订单号） | **US + UK + DE**（`2022`/`2220` 前缀→UK，`2023`/`2320` 前缀→DE，其余→US） |
-| CJ | `Order ID`（Shopify `orderId`） | **US + UK + DE**（在各站点索引中查找） |
+| ~~CJ~~ | （已停用） | — |
 | Awin | `extra` / `orderRef` | 与 Awin 站点对应：**DE→DE，UK→UK** |
 
-匹配成功条件：在对应 Shopify 报告中找到订单，且 `utm_source` 为 `impact` / `cj` / `awin`。
+匹配成功条件：在对应 Shopify 报告中找到订单，且 `utm_source` 为 `impact` / `awin`（CJ 已停用）。
 
 ### Action 列规则
 
@@ -144,7 +146,7 @@ affiliate-report process awin --year 2026 --month 5 --site de
 
 | 优先级 | 条件 | Action |
 |--------|------|--------|
-| 1 | 佣金为 0（Impact `Action Cost`、CJ `CJ Fee (USD)`、Awin `commission`） | `通过` |
+| 1 | 佣金为 0（Impact `Action Cost`、Awin `commission`） | `通过` |
 | 2 | 佣金 ≠ 0 且 `shopify是否退款` 为 `1`（全额）或 `2`（部分） | `取消` |
 | 3a | 佣金 ≠ 0、未退款，且 Shopify 匹配成功 | `通过` |
 | 3b | 佣金 ≠ 0、未退款，且使用了该媒体独家折扣码（`exclusive_codes.csv`） | `通过` |
@@ -156,7 +158,7 @@ affiliate-report process awin --year 2026 --month 5 --site de
 - `shopify是否退款`：在 Shopify 全量订单中**找到该订单**时必填——`0` = 未退款，`1` = 全额退款，`2` = 部分退款（与 utm 是否匹配无关）。**仅当 Shopify 中找不到该订单时为空**。Action 对 `1`/`2` 同等按「有退款」处理。
 - `shopify退款金额`：找到订单且有退款时填写退款合计；未退款或找不到订单为空。
 - 全额/部分判定：订单当前 `netSales`（Shopify `currentSubtotalPriceSet`，已扣退款）≤ 0 为全额，否则为部分。
-- 「匹配情况」= Shopify 中有该订单 **且** `utm_source` 为当前平台（impact/cj/awin）；退款字段只依赖「订单是否存在」，不依赖匹配。
+- 「匹配情况」= Shopify 中有该订单 **且** `utm_source` 为当前平台（impact/awin）；退款字段只依赖「订单是否存在」，不依赖匹配。
 - 独家 code 以 **Shopify 订单折扣码**（`discountCode`）为准；仅对 CSV 中列出的媒体补 `通过`，不再单独整媒体覆盖。
 - 订单量规则不会覆盖优先级 1/2 已定的结果（如有退款的非零佣金仍为 `取消`）。
 - Total > 5 时不做 3c/3d 补通过；未匹配且无独家 code 的订单最终为 `取消`（零佣金 / ≤2 单媒体除外）。
@@ -224,21 +226,9 @@ affiliate-report fetch awin --year 2026 --month 5 --site uk
 | `AWIN_ADVERTISER_ID_DE` | DE Advertiser ID（在 Awin 后台或 `awin list-accounts` 查看） |
 | `AWIN_ADVERTISER_ID_UK` | UK Advertiser ID（同上） |
 
-### CJ
+### CJ（已停用）
 
-```bash
-affiliate-report cj probe
-affiliate-report fetch cj --year 2026 --month 5
-```
-
-输出：`data/raw/cj/actions_2026-05.json`
-
-| 变量 | 说明 |
-|------|------|
-| `CJ_API_KEY` | Personal Access Token |
-| `CJ_COMPANY_ID` | Company ID (CID) |
-| `CJ_ACCOUNT_TYPE` | `advertiser` 或 `publisher` |
-| `CJ_DATE_FIELD` | `posting`（默认）或 `event`；与 UI CSV 对齐时常用 `event` |
+代码与配置项仍保留；月报 / `fetch cj` / `process cj` / `cj probe` 已从 CLI 与流水线注释。恢复时搜索源码中的 `CJ disabled`。
 
 ### Shopify
 
@@ -247,24 +237,23 @@ affiliate-report fetch cj --year 2026 --month 5
 | 报告 | 说明 | UTM 过滤 |
 |------|------|----------|
 | `sales-attribution` | 全部订单 | 无 |
-| `cj-shopify` | CJ 联盟订单 | `utm_source=cj` |
+| ~~`cj-shopify`~~ | （CJ 已停用；可用 `--report cj-shopify` 手动拉） | `utm_source=cj` |
 | `impact-shopify` | Impact 联盟订单 | `utm_source=impact` |
 | `awin-shopify` | Awin 联盟订单 | `utm_source=awin` |
 
 ```bash
-# 全部站点 × 全部报告
+# 全部站点 × 默认报告（不含 cj-shopify）
 affiliate-report fetch shopify --year 2026 --month 5
 
 # 单站点 / 单报告
 affiliate-report fetch shopify --year 2026 --month 5 --site us
-affiliate-report fetch shopify --year 2026 --month 5 --site us --report cj-shopify
+affiliate-report fetch shopify --year 2026 --month 5 --site us --report impact-shopify
 ```
 
 输出示例（US）：
 
 ```
 data/raw/shopify/us/sales_attribution/sales_attribution_2026-05.json
-data/raw/shopify/us/cj_shopify/cj_shopify_2026-05.json
 data/raw/shopify/us/impact_shopify/impact_shopify_2026-05.json
 data/raw/shopify/us/awin_shopify/awin_shopify_2026-05.json
 ```
@@ -278,7 +267,7 @@ data/raw/shopify/us/awin_shopify/awin_shopify_2026-05.json
 | `SHOPIFY_SHOP_US` / `SHOPIFY_ACCESS_TOKEN_US` | US 店铺 |
 | `SHOPIFY_SHOP_DE` / `SHOPIFY_ACCESS_TOKEN_DE` | DE 店铺 |
 | `SHOPIFY_SHOP_UK` / `SHOPIFY_ACCESS_TOKEN_UK` | UK 店铺 |
-| `SHOPIFY_CJ_UTM_SOURCE` | 默认 `cj` |
+| ~~`SHOPIFY_CJ_UTM_SOURCE`~~ | （CJ 已停用） |
 | `SHOPIFY_IMPACT_UTM_SOURCE` | 默认 `impact` |
 | `SHOPIFY_AWIN_UTM_SOURCE` | 默认 `awin` |
 
@@ -338,13 +327,13 @@ affiliate-report report --year 2026 --month 5
 
 # 单平台拉取
 affiliate-report fetch impact --year 2026 --month 5
-affiliate-report fetch cj --year 2026 --month 5
+# affiliate-report fetch cj --year 2026 --month 5  # CJ 已停用
 affiliate-report fetch awin --year 2026 --month 5
 affiliate-report fetch shopify --year 2026 --month 5
 
 # 单平台对账
 affiliate-report process impact --year 2026 --month 5
-affiliate-report process cj --year 2026 --month 5
+# affiliate-report process cj --year 2026 --month 5  # CJ 已停用
 affiliate-report process awin --year 2026 --month 5
 
 # 独家 Code 配置

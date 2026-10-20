@@ -13,7 +13,7 @@ def _progress(message: str) -> None:
 from affiliate_report.config import DATA_DIR
 from affiliate_report.models import MonthRange
 from affiliate_report.platforms.awin import AwinPlatformClient
-from affiliate_report.platforms.cj import CJPlatformClient
+# from affiliate_report.platforms.cj import CJPlatformClient  # CJ disabled
 from affiliate_report.platforms.impact import ImpactPlatformClient
 from affiliate_report.platforms.shopify import ShopifyPlatformClient
 from affiliate_report.pipeline.match_summary import build_match_summary_sheets
@@ -22,7 +22,7 @@ from affiliate_report.pipeline.shopify_sheets import (
     build_shopify_workbook_sheets,
 )
 from affiliate_report.reconcile.awin import AWIN_DECIMAL_COLUMNS, process_awin_month
-from affiliate_report.reconcile.cj import CJ_DECIMAL_COLUMNS, process_cj_month
+# from affiliate_report.reconcile.cj import CJ_DECIMAL_COLUMNS, process_cj_month  # CJ disabled
 from affiliate_report.reconcile.impact import IMPACT_DECIMAL_COLUMNS, process_impact_month
 
 REPORTS_DIR = DATA_DIR / "reports"
@@ -31,7 +31,7 @@ REPORTS_DIR = DATA_DIR / "reports"
 NUMERIC_COLUMNS: frozenset[str] = frozenset(
     {
         *IMPACT_DECIMAL_COLUMNS,
-        *CJ_DECIMAL_COLUMNS,
+        # *CJ_DECIMAL_COLUMNS,  # CJ disabled
         *AWIN_DECIMAL_COLUMNS,
         *SHOPIFY_DECIMAL_COLUMNS,
     }
@@ -104,9 +104,10 @@ def _fetch_monthly_sources(
         report_handle=impact_report_handle,
     )
 
-    _progress("--- Fetch CJ ---")
-    cj = CJPlatformClient(verbose=verbose)
-    cj.fetch_monthly_actions(month)
+    # CJ disabled — uncomment to re-enable
+    # _progress("--- Fetch CJ ---")
+    # cj = CJPlatformClient(verbose=verbose)
+    # cj.fetch_monthly_actions(month)
 
     _progress("--- Fetch Awin (DE + UK) ---")
     awin = AwinPlatformClient(verbose=verbose)
@@ -119,8 +120,9 @@ def _process_monthly_sheets(month: MonthRange) -> dict[str, Path | pd.DataFrame]
     sources: dict[str, Path | pd.DataFrame] = {
         "Impact": process_impact_month(label),
     }
-    _progress("--- Reconcile CJ ---")
-    sources["CJ"] = process_cj_month(label, shopify_site="all")
+    # CJ disabled — uncomment to re-enable
+    # _progress("--- Reconcile CJ ---")
+    # sources["CJ"] = process_cj_month(label, shopify_site="all")
     _progress("--- Reconcile Awin ---")
     awin_paths = process_awin_month(label, site="all")
     sources["Awin-DE"] = awin_paths["de"]

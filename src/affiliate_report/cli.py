@@ -6,7 +6,7 @@ from pathlib import Path
 
 from affiliate_report.models import MonthRange
 from affiliate_report.platforms.awin import AwinPlatformClient
-from affiliate_report.platforms.cj import CJPlatformClient
+# from affiliate_report.platforms.cj import CJPlatformClient  # CJ disabled
 from affiliate_report.platforms.impact import ImpactPlatformClient
 from affiliate_report.platforms.shopify import ShopifyPlatformClient
 
@@ -26,7 +26,8 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     fetch = sub.add_parser("fetch", parents=[common], help="Fetch monthly actions report")
-    fetch.add_argument("platform", choices=["impact", "awin", "cj", "shopify"], help="Affiliate platform")
+    # CJ disabled — add "cj" back to choices to re-enable
+    fetch.add_argument("platform", choices=["impact", "awin", "shopify"], help="Affiliate platform")
     fetch.add_argument("--year", type=int, required=True)
     fetch.add_argument("--month", type=int, required=True, choices=range(1, 13))
     fetch.add_argument(
@@ -43,9 +44,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     fetch.add_argument(
         "--report",
+        # CJ disabled — "cj-shopify" still accepted for manual re-fetch if needed
         choices=["all", "sales-attribution", "cj-shopify", "impact-shopify", "awin-shopify"],
         default="all",
-        help="Shopify only: report type (default: all)",
+        help="Shopify only: report type (default: all; cj-shopify excluded from all)",
     )
     fetch.add_argument("--report-handle", help="Impact report handle override")
     fetch.add_argument(
@@ -69,23 +71,25 @@ def main(argv: list[str] | None = None) -> int:
     awin_sub = awin_list.add_subparsers(dest="awin_command", required=True)
     awin_sub.add_parser("list-accounts", help="List Awin accounts accessible by API token")
 
-    cj_list = sub.add_parser("cj", parents=[common], help="CJ-specific commands")
-    cj_sub = cj_list.add_subparsers(dest="cj_command", required=True)
-    cj_probe = cj_sub.add_parser("probe", help="Verify CJ token + company ID access")
-    cj_probe.add_argument("--company-id", help="Override CJ_COMPANY_ID for probe")
+    # CJ disabled — uncomment to re-enable `affiliate-report cj probe`
+    # cj_list = sub.add_parser("cj", parents=[common], help="CJ-specific commands")
+    # cj_sub = cj_list.add_subparsers(dest="cj_command", required=True)
+    # cj_probe = cj_sub.add_parser("probe", help="Verify CJ token + company ID access")
+    # cj_probe.add_argument("--company-id", help="Override CJ_COMPANY_ID for probe")
 
     process = sub.add_parser("process", parents=[common], help="Reconcile / enrich platform data")
-    process.add_argument("platform", choices=["impact", "cj", "awin"], help="Platform to process")
+    # CJ disabled — add "cj" back to choices to re-enable
+    process.add_argument("platform", choices=["impact", "awin"], help="Platform to process")
     process.add_argument("--year", type=int, required=True)
     process.add_argument("--month", type=int, required=True, choices=range(1, 13))
     process.add_argument(
         "--shopify-site",
         choices=["all", "us", "uk", "de"],
         default="all",
-        help="CJ only: Shopify site(s) for sales attribution lookup (default: all)",
+        help="Shopify site(s) for sales attribution lookup (default: all)",
     )
     process.add_argument("--impact-file", type=Path, help="Override Impact raw CSV path")
-    process.add_argument("--cj-file", type=Path, help="Override CJ raw JSON path")
+    # process.add_argument("--cj-file", type=Path, help="Override CJ raw JSON path")  # CJ disabled
     process.add_argument("--awin-file", type=Path, help="Override Awin raw JSON path")
     process.add_argument(
         "--site",
@@ -153,8 +157,9 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_impact_poll_job(args)
         if args.command == "awin" and args.awin_command == "list-accounts":
             return _cmd_awin_list_accounts(args)
-        if args.command == "cj" and args.cj_command == "probe":
-            return _cmd_cj_probe(args)
+        # CJ disabled — uncomment to re-enable
+        # if args.command == "cj" and args.cj_command == "probe":
+        #     return _cmd_cj_probe(args)
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         body = getattr(exc, "body", None)
@@ -167,17 +172,18 @@ def main(argv: list[str] | None = None) -> int:
                 "or use --method report (ReportExport) instead.",
                 file=sys.stderr,
             )
-        if "No authorized advertiser" in str(exc) or "No authorized publisher" in str(exc):
-            print(
-                "Hint: check CJ_COMPANY_ID matches your CJ dashboard CID, and "
-                "CJ_ACCOUNT_TYPE is advertiser or publisher as appropriate.",
-                file=sys.stderr,
-            )
-        if "Only registered publisher users" in str(exc):
-            print(
-                "Hint: your token is not a publisher account. Set CJ_ACCOUNT_TYPE=advertiser.",
-                file=sys.stderr,
-            )
+        # CJ disabled — uncomment to re-enable hints
+        # if "No authorized advertiser" in str(exc) or "No authorized publisher" in str(exc):
+        #     print(
+        #         "Hint: check CJ_COMPANY_ID matches your CJ dashboard CID, and "
+        #         "CJ_ACCOUNT_TYPE is advertiser or publisher as appropriate.",
+        #         file=sys.stderr,
+        #     )
+        # if "Only registered publisher users" in str(exc):
+        #     print(
+        #         "Hint: your token is not a publisher account. Set CJ_ACCOUNT_TYPE=advertiser.",
+        #         file=sys.stderr,
+        #     )
         return 1
 
     parser.print_help()
@@ -236,18 +242,19 @@ def _cmd_process(args: argparse.Namespace, month: MonthRange) -> int:
         print(f"Enriched Impact report saved: {out}")
         return 0
 
-    if args.platform == "cj":
-        from affiliate_report.reconcile.cj import process_cj_month
-
-        out = process_cj_month(
-            month.label,
-            cj_path=args.cj_file,
-            shopify_path=args.shopify_file,
-            shopify_site=args.shopify_site,
-            output_path=args.output,
-        )
-        print(f"Enriched CJ report saved: {out}")
-        return 0
+    # CJ disabled — uncomment to re-enable `affiliate-report process cj`
+    # if args.platform == "cj":
+    #     from affiliate_report.reconcile.cj import process_cj_month
+    #
+    #     out = process_cj_month(
+    #         month.label,
+    #         cj_path=args.cj_file,
+    #         shopify_path=args.shopify_file,
+    #         shopify_site=args.shopify_site,
+    #         output_path=args.output,
+    #     )
+    #     print(f"Enriched CJ report saved: {out}")
+    #     return 0
 
     if args.platform == "awin":
         from affiliate_report.reconcile.awin import process_awin_month
@@ -272,8 +279,9 @@ def _cmd_fetch(args: argparse.Namespace, month: MonthRange) -> int:
         return _cmd_fetch_impact(args, month)
     if args.platform == "awin":
         return _cmd_fetch_awin(args, month)
-    if args.platform == "cj":
-        return _cmd_fetch_cj(args, month)
+    # CJ disabled — uncomment to re-enable `affiliate-report fetch cj`
+    # if args.platform == "cj":
+    #     return _cmd_fetch_cj(args, month)
     if args.platform == "shopify":
         return _cmd_fetch_shopify(args, month)
     print(f"Platform '{args.platform}' not implemented yet.", file=sys.stderr)
@@ -318,18 +326,19 @@ def _cmd_fetch_awin(args: argparse.Namespace, month: MonthRange) -> int:
     return 0
 
 
-def _cmd_fetch_cj(args: argparse.Namespace, month: MonthRange) -> int:
-    client = CJPlatformClient(verbose=args.verbose)
-
-    if args.no_preprocess:
-        raw = client.fetch_monthly_actions(month)
-        print(f"Raw report saved: {raw}")
-        return 0
-
-    raw, processed = client.fetch_and_preprocess(month)
-    print(f"Raw report saved:      {raw}")
-    print(f"Processed report saved: {processed}")
-    return 0
+# CJ disabled — uncomment with fetch/process CJ choices to re-enable
+# def _cmd_fetch_cj(args: argparse.Namespace, month: MonthRange) -> int:
+#     client = CJPlatformClient(verbose=args.verbose)
+#
+#     if args.no_preprocess:
+#         raw = client.fetch_monthly_actions(month)
+#         print(f"Raw report saved: {raw}")
+#         return 0
+#
+#     raw, processed = client.fetch_and_preprocess(month)
+#     print(f"Raw report saved:      {raw}")
+#     print(f"Processed report saved: {processed}")
+#     return 0
 
 
 def _cmd_fetch_shopify(args: argparse.Namespace, month: MonthRange) -> int:
@@ -350,31 +359,33 @@ def _cmd_fetch_shopify(args: argparse.Namespace, month: MonthRange) -> int:
     return 0
 
 
-def _cmd_cj_probe(args: argparse.Namespace) -> int:
-    from dataclasses import replace
-
-    from affiliate_report.platforms.cj.config import CJConfig
-
-    config = CJConfig.from_env(require_company_id=False)
-    company_id = args.company_id or config.company_id
-    if not company_id:
-        print("Provide --company-id or set CJ_COMPANY_ID in .env", file=sys.stderr)
-        return 1
-    config = replace(config, company_id=company_id)
-
-    client = CJPlatformClient(config=config, verbose=args.verbose)
-    result = client.probe_access(company_id=company_id)
-    print(f"Account type: {result['account_type']}")
-    print(f"Company ID:   {result['company_id']}")
-    print(f"Probe count:  {result['count']}")
-    if result.get("sample_name"):
-        print(f"Sample name:  {result['sample_name']}")
-    if result["count"] == 0:
-        print(
-            "Token accepted but no records in probe window. "
-            "CID may be wrong, or there were no commissions on 2026-01-01.",
-        )
-    return 0
+# CJ disabled — uncomment with `cj` subcommand to re-enable
+# def _cmd_cj_probe(args: argparse.Namespace) -> int:
+#     from dataclasses import replace
+#
+#     from affiliate_report.platforms.cj import CJPlatformClient
+#     from affiliate_report.platforms.cj.config import CJConfig
+#
+#     config = CJConfig.from_env(require_company_id=False)
+#     company_id = args.company_id or config.company_id
+#     if not company_id:
+#         print("Provide --company-id or set CJ_COMPANY_ID in .env", file=sys.stderr)
+#         return 1
+#     config = replace(config, company_id=company_id)
+#
+#     client = CJPlatformClient(config=config, verbose=args.verbose)
+#     result = client.probe_access(company_id=company_id)
+#     print(f"Account type: {result['account_type']}")
+#     print(f"Company ID:   {result['company_id']}")
+#     print(f"Probe count:  {result['count']}")
+#     if result.get("sample_name"):
+#         print(f"Sample name:  {result['sample_name']}")
+#     if result["count"] == 0:
+#         print(
+#             "Token accepted but no records in probe window. "
+#             "CID may be wrong, or there were no commissions on 2026-01-01.",
+#         )
+#     return 0
 
 
 def _cmd_impact_poll_job(args: argparse.Namespace) -> int:

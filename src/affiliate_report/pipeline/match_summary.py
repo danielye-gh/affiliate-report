@@ -8,7 +8,7 @@ from affiliate_report.reconcile.action_rules import normalize_partner_name
 
 PLATFORM_SUMMARY_CONFIG: tuple[tuple[str, str, str], ...] = (
     ("Impact", "Partner", "匹配情况"),
-    ("CJ", "Website Name", "Shopify匹配情况"),
+    # ("CJ", "Website Name", "Shopify匹配情况"),  # CJ disabled — uncomment to re-enable
     ("Awin-DE", "publisher", "匹配情况"),
     ("Awin-UK", "publisher", "匹配情况"),
 )

@@ -107,12 +107,12 @@ ChatGPT **不能**在你的电脑上自动运行程序，但可以帮你「翻�
 | Sheet | 内容 |
 |-------|------|
 | Impact-Summary | Impact 按 Partner 匹配汇总 |
-| CJ-Summary | CJ 按 Website Name 匹配汇总 |
+| ~~CJ-Summary~~ | （CJ 已停用） |
 | Awin-DE-Summary | Awin DE 按 publisher 匹配汇总 |
 | Awin-UK-Summary | Awin UK 按 publisher 匹配汇总 |
-| Impact / CJ / Awin-DE / Awin-UK | 各平台对账明细 |
+| Impact / Awin-DE / Awin-UK | 各平台对账明细（CJ 已停用） |
 | sales_attribution-us/de/uk | Shopify 全量订单 |
-| cj-shopify / impact-shopify / awin-shopify | 联盟订单 |
+| impact-shopify / awin-shopify | 联盟订单（cj-shopify 已停用） |
 
 ---
 
@@ -129,7 +129,7 @@ ChatGPT **不能**在你的电脑上自动运行程序，但可以帮你「翻�
 ### 报告生成失败
 
 - 检查 `.env` 里各平台密钥是否完整
-- 确认电脑能访问外网（需调用 Impact / CJ / Awin / Shopify API）
+- 确认电脑能访问外网（需调用 Impact / Awin / Shopify API；CJ 已停用）
 - 把完整报错信息发给管理员
 
 ### 提示找不到 `C:\Users\某人\...\python.exe`（虚拟环境路径错误）

@@ -30,7 +30,7 @@ SHOPIFY_DECIMAL_COLUMNS = ("netSales", "shippingCharges")
 
 REPORT_FOLDERS = {
     "sales_attribution": "sales_attribution",
-    "cj_shopify": "cj_shopify",
+    # "cj_shopify": "cj_shopify",  # CJ disabled — uncomment to re-enable
     "impact_shopify": "impact_shopify",
     "awin_shopify": "awin_shopify",
 }
@@ -45,7 +45,7 @@ def build_shopify_workbook_sheets(period_label: str) -> dict[str, pd.DataFrame]:
         )
 
     for sheet_name, folder in (
-        ("cj-shopify", "cj_shopify"),
+        # ("cj-shopify", "cj_shopify"),  # CJ disabled — uncomment to re-enable
         ("impact-shopify", "impact_shopify"),
         ("awin-shopify", "awin_shopify"),
     ):

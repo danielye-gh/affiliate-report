@@ -14,15 +14,18 @@ from affiliate_report.platforms.shopify.orders import ShopifyOrdersAPI
 from affiliate_report.preprocess.shopify import preprocess_shopify_attribution
 
 REPORT_SALES_ATTRIBUTION = "sales-attribution"
-REPORT_CJ_SHOPIFY = "cj-shopify"
+REPORT_CJ_SHOPIFY = "cj-shopify"  # kept for re-enable / explicit --report
 REPORT_IMPACT_SHOPIFY = "impact-shopify"
 REPORT_AWIN_SHOPIFY = "awin-shopify"
+# Default reports when --report all (CJ disabled — add REPORT_CJ_SHOPIFY to re-enable)
 ALL_REPORTS = (
     REPORT_SALES_ATTRIBUTION,
-    REPORT_CJ_SHOPIFY,
+    # REPORT_CJ_SHOPIFY,
     REPORT_IMPACT_SHOPIFY,
     REPORT_AWIN_SHOPIFY,
 )
+# Explicit --report cj-shopify still allowed
+_OPTIONAL_REPORTS = (REPORT_CJ_SHOPIFY,)
 
 
 class ShopifyPlatformClient(AffiliatePlatformClient):
@@ -72,6 +75,7 @@ class ShopifyPlatformClient(AffiliatePlatformClient):
 
                 report_rows = {
                     REPORT_SALES_ATTRIBUTION: all_rows,
+                    # CJ disabled — uncomment to re-enable default fetch
                     REPORT_CJ_SHOPIFY: api.filter_rows(all_rows, self.config.cj_utm),
                     REPORT_IMPACT_SHOPIFY: api.filter_rows(all_rows, self.config.impact_utm),
                     REPORT_AWIN_SHOPIFY: api.filter_rows(all_rows, self.config.awin_utm),
@@ -117,14 +121,15 @@ class ShopifyPlatformClient(AffiliatePlatformClient):
 
 
 def _resolve_reports(reports: tuple[str, ...] | None) -> tuple[str, ...]:
+    allowed = (*ALL_REPORTS, *_OPTIONAL_REPORTS)
     if not reports or reports == ("all",):
         return ALL_REPORTS
     selected: list[str] = []
     for name in reports:
         if name == "all":
             return ALL_REPORTS
-        if name not in ALL_REPORTS:
-            raise ValueError(f"Unknown Shopify report '{name}'. Choose from: {', '.join(ALL_REPORTS)}")
+        if name not in allowed:
+            raise ValueError(f"Unknown Shopify report '{name}'. Choose from: {', '.join(allowed)}")
         selected.append(name)
     return tuple(selected)
 
