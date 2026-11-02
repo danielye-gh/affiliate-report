@@ -22,12 +22,12 @@ IMPACT_MATCH_COLUMNS = [
     "匹配情况",
     "shopify是否退款",
     "shopify退款金额",
-    "62开头OID-shopify",
+    # "62开头OID-shopify",  # CJ cross-lookup helper (disabled with CJ)
     "attribution",
     "discount code",
-    "CJ匹配",
+    # "CJ匹配",  # CJ disabled
     "Action",
-    "CJ Action状态",
+    # "CJ Action状态",  # CJ disabled
 ]
 
 # Output label -> raw Impact export column aliases (ReportExport CSV uses underscores).
@@ -181,8 +181,8 @@ def _match_row(
         "shopify匹配": shopify.oid,
         "匹配情况": "匹配",
         **refund_fields,
-        "62开头OID-shopify": shopify.order_id,
-        "CJ匹配": "",
+        # "62开头OID-shopify": shopify.order_id,  # CJ cross-lookup helper (disabled with CJ)
+        # "CJ匹配": "",  # CJ disabled
         "Action": "",
-        "CJ Action状态": "",
+        # "CJ Action状态": "",  # CJ disabled
     }
