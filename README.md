@@ -134,7 +134,7 @@ affiliate-report process awin --year 2026 --month 5 --site de
 
 | 平台 | 匹配键 | Shopify 数据源 |
 |------|--------|----------------|
-| Impact | `OID`（订单号） | **US + UK + DE**（`2022`/`2220` 前缀→UK，`2023`/`2320` 前缀→DE，其余→US） |
+| Impact | `OID`（订单号） | **US + UK + DE + FR + AU**（`2022`/`2220` 前缀→UK，`2023`/`2320` 前缀→DE，`2420` 前缀→FR，`2620` 前缀→AU，其余→US） |
 | ~~CJ~~ | （已停用） | — |
 | Awin | `extra` / `orderRef` | 与 Awin 站点对应：**DE→DE，UK→UK** |
 
@@ -267,6 +267,8 @@ data/raw/shopify/us/awin_shopify/awin_shopify_2026-05.json
 | `SHOPIFY_SHOP_US` / `SHOPIFY_ACCESS_TOKEN_US` | US 店铺 |
 | `SHOPIFY_SHOP_DE` / `SHOPIFY_ACCESS_TOKEN_DE` | DE 店铺 |
 | `SHOPIFY_SHOP_UK` / `SHOPIFY_ACCESS_TOKEN_UK` | UK 店铺 |
+| `SHOPIFY_SHOP_FR` / `SHOPIFY_ACCESS_TOKEN_FR` | FR 店铺 |
+| `SHOPIFY_SHOP_AU` / `SHOPIFY_ACCESS_TOKEN_AU` | AU 店铺 |
 | ~~`SHOPIFY_CJ_UTM_SOURCE`~~ | （CJ 已停用） |
 | `SHOPIFY_IMPACT_UTM_SOURCE` | 默认 `impact` |
 | `SHOPIFY_AWIN_UTM_SOURCE` | 默认 `awin` |

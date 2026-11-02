@@ -8,7 +8,7 @@ import pandas as pd
 from affiliate_report.config import RAW_DIR
 from affiliate_report.reconcile.formatting import format_decimal_cell
 
-SHOPIFY_SITES = ("us", "de", "uk")
+SHOPIFY_SITES = ("us", "de", "uk", "fr", "au")
 
 SHOPIFY_DISPLAY_COLUMNS = [
     "orderUtmSource",
@@ -40,8 +40,14 @@ def build_shopify_workbook_sheets(period_label: str) -> dict[str, pd.DataFrame]:
     sheets: dict[str, pd.DataFrame] = {}
     for site in SHOPIFY_SITES:
         path = _shopify_report_path(site, "sales_attribution", period_label)
+        if not path.is_file():
+            continue
         sheets[f"sales_attribution-{site}"] = _load_shopify_report(
             path, site=site, include_site=False
+        )
+    if not sheets:
+        raise FileNotFoundError(
+            f"No Shopify sales_attribution reports found for period {period_label}"
         )
 
     for sheet_name, folder in (

@@ -193,7 +193,7 @@ def default_shopify_sales_attribution_path(period_label: str, *, site: str = "us
     )
 
 
-SHOPIFY_SITES = ("us", "uk", "de")
+SHOPIFY_SITES = ("us", "uk", "de", "fr", "au")
 
 
 def resolve_shopify_site_from_order_key(order_key: str) -> str:
@@ -203,6 +203,10 @@ def resolve_shopify_site_from_order_key(order_key: str) -> str:
         return "uk"
     if text.startswith(("2023", "2320")):
         return "de"
+    if text.startswith("2420"):
+        return "fr"
+    if text.startswith("2620"):
+        return "au"
     return "us"
 
 

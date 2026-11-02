@@ -38,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     fetch.add_argument(
         "--site",
-        choices=["all", "us", "de", "uk"],
+        choices=["all", "us", "de", "uk", "fr", "au"],
         default="all",
         help="Awin/Shopify: site filter (default: all configured sites)",
     )
@@ -84,7 +84,7 @@ def main(argv: list[str] | None = None) -> int:
     process.add_argument("--month", type=int, required=True, choices=range(1, 13))
     process.add_argument(
         "--shopify-site",
-        choices=["all", "us", "uk", "de"],
+        choices=["all", "us", "uk", "de", "fr", "au"],
         default="all",
         help="Shopify site(s) for sales attribution lookup (default: all)",
     )
@@ -237,6 +237,7 @@ def _cmd_process(args: argparse.Namespace, month: MonthRange) -> int:
             month.label,
             impact_path=args.impact_file,
             shopify_path=args.shopify_file,
+            shopify_site=args.shopify_site,
             output_path=args.output,
         )
         print(f"Enriched Impact report saved: {out}")

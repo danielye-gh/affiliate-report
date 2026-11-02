@@ -13,6 +13,8 @@ class ShopifySite(str, Enum):
     US = "us"
     DE = "de"
     UK = "uk"
+    FR = "fr"
+    AU = "au"
 
 
 @dataclass(frozen=True)
@@ -83,6 +85,18 @@ class ShopifyConfig:
                 "SHOPIFY_SHOP_UK",
                 "SHOPIFY_ACCESS_TOKEN_UK",
                 "SHOPIFY_TIMEZONE_UK",
+            ),
+            (
+                ShopifySite.FR,
+                "SHOPIFY_SHOP_FR",
+                "SHOPIFY_ACCESS_TOKEN_FR",
+                "SHOPIFY_TIMEZONE_FR",
+            ),
+            (
+                ShopifySite.AU,
+                "SHOPIFY_SHOP_AU",
+                "SHOPIFY_ACCESS_TOKEN_AU",
+                "SHOPIFY_TIMEZONE_AU",
             ),
         ):
             shop = os.getenv(shop_key, "").strip()
