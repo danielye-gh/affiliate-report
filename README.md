@@ -88,6 +88,16 @@ affiliate-report report --year 2026 --month 5 --output data/reports/my_report.xl
 
 默认输出：`data/reports/affiliate_report_2026-05.xlsx`
 
+Impact 导出由服务器排队处理，默认最多等待 30 分钟。可在 `.env` 设置
+`IMPACT_EXPORT_MAX_WAIT_SECONDS=3600` 调整到 60 分钟。等待超时不代表服务器任务失败，
+程序不会自动重建或重放任务。可使用日志中的任务 ID 继续等待并下载原任务：
+
+```bash
+affiliate-report impact poll-job --job-id <任务ID> --output data/raw/impact/actions_2026-11.csv
+```
+
+该命令只恢复指定 Impact 导出文件，不自动重跑整份月报。
+
 ### 数据库补充归因
 
 Impact、Awin-DE、Awin-UK 对账会查询 DTC 表

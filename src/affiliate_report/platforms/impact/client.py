@@ -2,13 +2,25 @@ from __future__ import annotations
 
 import sys
 import time
+import math
+import os
 from typing import Any
 
 import httpx
 
 IMPACT_BASE_URL = "https://api.impact.com"
 DEFAULT_POLL_INTERVAL = 5
-DEFAULT_MAX_WAIT = 600
+DEFAULT_MAX_WAIT = 1800
+
+
+def _positive_seconds(value: object, name: str) -> float:
+    try:
+        seconds = float(value)
+    except (ValueError, TypeError):
+        raise ValueError(f"{name} must be a positive number of seconds") from None
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise ValueError(f"{name} must be a positive number of seconds")
+    return seconds
 
 
 class ImpactAPIError(Exception):
@@ -30,10 +42,17 @@ class ImpactClient:
         base_url: str = IMPACT_BASE_URL,
         timeout: float = 120.0,
         verbose: bool = False,
+        export_max_wait: float | None = None,
     ):
         self.account_sid = account_sid
         self.account_type = account_type
         self.verbose = verbose
+        self.export_max_wait = _positive_seconds(
+            export_max_wait if export_max_wait is not None else os.getenv(
+                "IMPACT_EXPORT_MAX_WAIT_SECONDS", str(DEFAULT_MAX_WAIT)
+            ),
+            "IMPACT_EXPORT_MAX_WAIT_SECONDS",
+        )
         self._prefix = "Advertisers" if account_type == "advertiser" else "Mediapartners"
         self._client = httpx.Client(
             base_url=base_url,
@@ -115,14 +134,21 @@ class ImpactClient:
         queued_uri: str,
         *,
         poll_interval: float = DEFAULT_POLL_INTERVAL,
-        max_wait: float = DEFAULT_MAX_WAIT,
+        max_wait: float | None = None,
     ) -> dict[str, Any]:
         """Poll QueuedUri until job completes; return final job object."""
-        deadline = time.monotonic() + max_wait
+        wait_seconds = _positive_seconds(
+            self.export_max_wait if max_wait is None else max_wait, "max_wait"
+        )
+        interval = _positive_seconds(poll_interval, "poll_interval")
+        started = time.monotonic()
+        deadline = started + wait_seconds
         job_path = _normalize_api_path(queued_uri)
         if not job_path.endswith(".json"):
             job_path = f"{job_path}.json"
 
+        job: dict[str, Any] = {}
+        status = "UNKNOWN"
         while time.monotonic() < deadline:
             try:
                 job = self.get_json(job_path)
@@ -135,7 +161,7 @@ class ImpactClient:
                         body=exc.body,
                     ) from exc
                 raise
-            status = job.get("Status", "")
+            status = str(job.get("Status") or "").strip().upper()
             if status == "COMPLETED":
                 return job
             if status in {"ERROR", "FAILED", "CANCELLED"}:
@@ -143,14 +169,26 @@ class ImpactClient:
                     f"Impact job failed with status {status}: {job.get('StatusMessage')}",
                     body=job,
                 )
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            delay = min(interval, remaining)
+            elapsed = time.monotonic() - started
             print(
-                f"... Impact job {status!r}, checking again in {int(poll_interval)}s",
+                f"... Impact job {status!r}, waited {int(elapsed)}s / {int(wait_seconds)}s, "
+                f"checking again in {delay:g}s",
                 file=sys.stderr,
                 flush=True,
             )
-            time.sleep(poll_interval)
+            time.sleep(delay)
 
-        raise ImpactAPIError(f"Timed out waiting for Impact job at {job_path}")
+        message = (
+            f"Impact 导出等待超时（上限 {wait_seconds:g} 秒），最后任务状态为 {status}。"
+            "本地已停止等待，未取消或重新创建服务器任务。"
+            "可在 .env 中增大 IMPACT_EXPORT_MAX_WAIT_SECONDS 后继续查询；"
+            f"使用 affiliate-report impact poll-job --queued-uri {job_path} 继续等待并下载该任务。"
+        )
+        raise ImpactAPIError(message, body=job or None)
 
     def download_job_result(self, job: dict[str, Any]) -> bytes:
         result_uri = job.get("ResultUri")
@@ -160,7 +198,7 @@ class ImpactClient:
         job_id = _extract_job_id(result_uri)
         download_path = _normalize_api_path(f"{self._path(f'/Jobs/{job_id}/Download')}")
 
-        deadline = time.monotonic() + DEFAULT_MAX_WAIT
+        deadline = time.monotonic() + self.export_max_wait
         while time.monotonic() < deadline:
             self._log_request("GET", download_path)
             response = self._client.get(download_path)
