@@ -88,6 +88,23 @@ affiliate-report report --year 2026 --month 5 --output data/reports/my_report.xl
 
 默认输出：`data/reports/affiliate_report_2026-05.xlsx`
 
+### 数据库补充归因
+
+Impact、Awin-DE、Awin-UK 对账会查询 DTC 表
+`dwd_wb_shopify_orders_original_sku_detail_di`，在原归因列旁新增「补充归因」。
+请在本地 `.env` 填写 `DTC_DATABASE_USER`、`DTC_DATABASE_PASSWORD`；连接地址等可选配置见 `.env.example`。
+凭据不写入代码或报表，连接使用 TLS 并校验证书。
+
+- Impact 使用订单名称去掉 `#` 对齐 OID；Awin 使用数字订单 ID 对齐 extra，均限定店铺。
+- 只采用数据库 `last_visit_utm_source` 中的 `impact` / `awin`（忽略大小写和首尾空格）。
+- 补充归因有值时优先用于匹配判断，否则沿用 Shopify 原归因；原归因列保留供对照。
+- 匹配结果继续进入既有 Action 规则和 Summary；退款、佣金、专属码规则的优先级不变。
+- 按报表订单批量查询，不限制销售发生日期。同一订单取最新刷新时间，再按销售时间、销售日期排序；同一时点来源冲突时报错。
+- Shopify 未找到但数据库找到的订单也能补充归因，退款信息仍为空，不推断为「无退款」。
+- 数据库失败或缺少凭据会终止处理。`--skip-fetch` 只跳过平台 API 拉取，仍会查询数据库。
+
+归因回归检查：`PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v`。
+
 ### Excel 工作表（14 个 sheet）
 
 | Sheet | 内容 |

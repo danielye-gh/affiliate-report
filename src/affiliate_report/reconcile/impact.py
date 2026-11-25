@@ -12,7 +12,9 @@ from affiliate_report.reconcile.formatting import (
     finalize_action_column,
     format_decimal_columns,
 )
+from affiliate_report.reconcile.dtc import DtcIndex, STORE_NAMES, load_attribution
 from affiliate_report.reconcile.shopify import (
+    resolve_shopify_site_from_order_key,
     load_oid_indexes_for_process,
     lookup_oid_match,
 )
@@ -24,6 +26,7 @@ IMPACT_MATCH_COLUMNS = [
     "shopify退款金额",
     # "62开头OID-shopify",  # CJ cross-lookup helper (disabled with CJ)
     "attribution",
+    "补充归因",
     "discount code",
     # "CJ匹配",  # CJ disabled
     "Action",
@@ -71,6 +74,7 @@ def enrich_impact_with_shopify(
     *,
     utm_source: str = "impact",
     oid_column: str = "OID",
+    dtc_index: DtcIndex | None = None,
 ) -> pd.DataFrame:
     """Add Shopify reconciliation columns after OID on Impact raw export."""
     raw_df = pd.read_csv(impact_path, dtype=str, keep_default_na=False)
@@ -83,8 +87,15 @@ def enrich_impact_with_shopify(
     if oid_column not in impact_df.columns:
         raise ValueError(f"Impact file missing '{oid_column}' column: {impact_path}")
 
+    if dtc_index is None:
+        keys_by_site: dict[str, list[str]] = {}
+        for oid in impact_df[oid_column]:
+            key = str(oid).strip().lstrip("#")
+            keys_by_site.setdefault(resolve_shopify_site_from_order_key(key), []).append(key)
+        dtc_index = load_attribution(keys_by_site, key_type="oid")
+
     match_rows = [
-        _match_row(oid, shopify_oid_indexes, utm_source=utm_source)
+        _match_row(oid, shopify_oid_indexes, utm_source=utm_source, dtc_index=dtc_index)
         for oid in impact_df[oid_column]
     ]
     match_df = pd.DataFrame(match_rows, columns=IMPACT_MATCH_COLUMNS)
@@ -155,34 +166,32 @@ def _match_row(
     shopify_indexes: dict,
     *,
     utm_source: str,
+    dtc_index: DtcIndex | None = None,
 ) -> dict[str, str]:
     empty = {col: "" for col in IMPACT_MATCH_COLUMNS}
-    oid = str(impact_oid or "").strip()
+    oid = str(impact_oid or "").strip().lstrip("#")
     if not oid:
         return empty
 
     shopify = lookup_oid_match(oid, shopify_indexes)
-    if shopify is None:
+    site = resolve_shopify_site_from_order_key(oid)
+    supplement = (dtc_index or DtcIndex()).by_oid.get((STORE_NAMES[site], oid))
+    if shopify is None and supplement is None:
         return empty
 
-    attribution = (shopify.utm_source or "").strip()
-    discount_code = (shopify.discount_code or "").strip()
-    # Order exists in Shopify: always fill refund fields (utm match is separate).
-    refund_fields = {
-        "shopify是否退款": shopify.refund_status,
-        "shopify退款金额": shopify.refund_amount_cell,
+    attribution = (shopify.utm_source or "").strip() if shopify else ""
+    fields = {
+        **empty,
         "attribution": attribution,
-        "discount code": discount_code,
+        "补充归因": supplement.source if supplement else "",
     }
-    if not shopify.matches_utm_source(utm_source):
-        return {**empty, **refund_fields}
-
-    return {
-        "shopify匹配": shopify.oid,
-        "匹配情况": "匹配",
-        **refund_fields,
-        # "62开头OID-shopify": shopify.order_id,  # CJ cross-lookup helper (disabled with CJ)
-        # "CJ匹配": "",  # CJ disabled
-        "Action": "",
-        # "CJ Action状态": "",  # CJ disabled
-    }
+    if shopify:
+        fields.update({
+            "shopify是否退款": shopify.refund_status,
+            "shopify退款金额": shopify.refund_amount_cell,
+            "discount code": (shopify.discount_code or "").strip(),
+        })
+    effective_source = supplement.source if supplement else attribution
+    if effective_source.strip().lower() == utm_source.strip().lower():
+        fields.update({"shopify匹配": shopify.oid if shopify else supplement.oid, "匹配情况": "匹配"})
+    return fields

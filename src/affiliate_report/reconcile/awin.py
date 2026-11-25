@@ -25,6 +25,7 @@ from affiliate_report.reconcile.formatting import (
     format_datetime_cell,
     format_decimal_columns,
 )
+from affiliate_report.reconcile.dtc import DtcIndex, STORE_NAMES, load_attribution
 from affiliate_report.reconcile.shopify import (
     default_shopify_sales_attribution_path,
     load_shopify_order_id_index,
@@ -40,6 +41,7 @@ AWIN_MATCH_COLUMNS = [
     "discount code",
     "Action",
     "Attribution",
+    "补充归因",
 ]
 
 AWIN_BASE_COLUMN_SOURCES: list[tuple[str, list[str]]] = [
@@ -88,6 +90,8 @@ def enrich_awin_with_shopify(
     *,
     publisher_name_index: dict[str, str] | None = None,
     utm_source: str = "awin",
+    site: str,
+    dtc_index: DtcIndex | None = None,
 ) -> pd.DataFrame:
     """Add Shopify reconciliation columns on Awin raw export."""
     with awin_path.open(encoding="utf-8") as f:
@@ -107,8 +111,11 @@ def enrich_awin_with_shopify(
     )
     tail_df["extra"] = tail_df["extra"].astype(str)
 
+    if dtc_index is None:
+        dtc_index = load_attribution({site: tail_df["extra"]}, key_type="order_id")
+
     match_rows = [
-        _match_row(order_ref, shopify_order_id_index, utm_source=utm_source)
+        _match_row(order_ref, shopify_order_id_index, utm_source=utm_source, site=site, dtc_index=dtc_index)
         for order_ref in tail_df["extra"]
     ]
     match_df = pd.DataFrame(match_rows, columns=AWIN_MATCH_COLUMNS)
@@ -167,6 +174,7 @@ def process_awin_month(
             awin_file,
             load_shopify_order_id_index(shopify_file),
             publisher_name_index=publisher_catalog,
+            site=site_label,
             utm_source=utm_source,
         )
 
@@ -241,6 +249,8 @@ def _match_row(
     shopify_index: dict,
     *,
     utm_source: str,
+    site: str,
+    dtc_index: DtcIndex | None = None,
 ) -> dict[str, str]:
     empty = {col: "" for col in AWIN_MATCH_COLUMNS}
     key = str(order_ref or "").strip()
@@ -248,24 +258,23 @@ def _match_row(
         return empty
 
     shopify = shopify_index.get(key)
-    if shopify is None:
+    supplement = (dtc_index or DtcIndex()).by_order_id.get((STORE_NAMES[site], key))
+    if shopify is None and supplement is None:
         return empty
 
-    attribution = (shopify.utm_source or "").strip()
-    discount_code = (shopify.discount_code or "").strip()
-    # Order exists in Shopify: always fill refund fields (utm match is separate).
-    refund_fields = {
-        "shopify是否退款": shopify.refund_status,
-        "shopify退款金额": shopify.refund_amount_cell,
+    attribution = (shopify.utm_source or "").strip() if shopify else ""
+    fields = {
+        **empty,
         "Attribution": attribution,
-        "discount code": discount_code,
+        "补充归因": supplement.source if supplement else "",
     }
-    if not shopify.matches_utm_source(utm_source):
-        return {**empty, **refund_fields}
-
-    return {
-        "shopify匹配": shopify.oid,
-        "匹配情况": "匹配",
-        **refund_fields,
-        "Action": "",
-    }
+    if shopify:
+        fields.update({
+            "shopify是否退款": shopify.refund_status,
+            "shopify退款金额": shopify.refund_amount_cell,
+            "discount code": (shopify.discount_code or "").strip(),
+        })
+    effective_source = supplement.source if supplement else attribution
+    if effective_source.strip().lower() == utm_source.strip().lower():
+        fields.update({"shopify匹配": shopify.oid if shopify else supplement.oid, "匹配情况": "匹配"})
+    return fields
