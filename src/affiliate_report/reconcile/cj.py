@@ -194,7 +194,7 @@ def _match_row(
         "shopify退款金额": shopify.refund_amount_cell,
         "discount code": discount_code,
     }
-    if not shopify.matches_utm_source(utm_source):
+    if not shopify.matches_order_utm_source(utm_source):
         return {**empty, **refund_fields}
 
     return {

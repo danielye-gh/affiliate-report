@@ -21,12 +21,12 @@ def database_row(order_id, source):
 class ShopifySupplementUnionTests(unittest.TestCase):
     def setUp(self):
         self.rows = [
-            dict(orderId='1', orderUtmSource='google', rowKind='order', netSales='100'),
-            dict(orderId='1', orderUtmSource='google', rowKind='refund', netSales='-20'),
-            dict(orderId='2', orderUtmSource='impact', rowKind='order', netSales='50'),
-            dict(orderId='3', orderUtmSource='impact', rowKind='order', netSales='60'),
-            dict(orderId='4', orderUtmSource=None, rowKind='order', netSales='70'),
-            dict(orderId='5', orderUtmSource='google', rowKind='order', netSales='80'),
+            dict(orderId='1', order_utm_source='google', rowKind='order', netSales='100'),
+            dict(orderId='1', order_utm_source='google', rowKind='refund', netSales='-20'),
+            dict(orderId='2', order_utm_source='impact', rowKind='order', netSales='50'),
+            dict(orderId='3', order_utm_source='impact', rowKind='order', netSales='60'),
+            dict(orderId='4', order_utm_source=None, rowKind='order', netSales='70'),
+            dict(orderId='5', order_utm_source='google', rowKind='order', netSales='80'),
         ]
         self.index = build_index([
             database_row('1', 'impact'), database_row('2', 'impact'),
@@ -42,7 +42,7 @@ class ShopifySupplementUnionTests(unittest.TestCase):
         awin = select_shopify_affiliate_rows(rows, 'awin')
         self.assertEqual([r['orderId'] for r in impact], ['1', '1', '2', '3'])
         self.assertEqual([r['orderId'] for r in awin], ['3', '4'])
-        self.assertEqual(impact[0]['orderUtmSource'], 'google')
+        self.assertEqual(impact[0]['order_utm_source'], 'google')
         self.assertEqual(impact[1]['rowKind'], 'refund')
         self.assertEqual(impact[1]['netSales'], '-20')
         self.assertEqual(impact[3]['补充归因'], 'awin')
@@ -100,8 +100,8 @@ class ShopifySupplementUnionTests(unittest.TestCase):
         self.assertEqual(rows[4]['补充归因'], 'awin')
 
     def test_custom_original_utm_filter_still_includes_canonical_supplement(self):
-        rows = [{'orderUtmSource': 'custom', '补充归因': ''},
-                {'orderUtmSource': 'google', '补充归因': 'impact'}]
+        rows = [{'order_utm_source': 'custom', '补充归因': ''},
+                {'order_utm_source': 'google', '补充归因': 'impact'}]
         self.assertEqual(select_shopify_affiliate_rows(rows, 'impact', original_source='custom'), rows)
 
 

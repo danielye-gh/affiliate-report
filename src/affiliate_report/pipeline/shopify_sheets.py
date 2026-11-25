@@ -6,13 +6,14 @@ from pathlib import Path
 import pandas as pd
 
 from affiliate_report.config import RAW_DIR
+from affiliate_report.shopify_attribution import read_order_utm_source
 from affiliate_report.reconcile.formatting import format_decimal_cell
 from affiliate_report.reconcile.dtc import supplement_shopify_rows, select_shopify_affiliate_rows
 
 SHOPIFY_SITES = ("us", "de", "uk", "fr", "au")
 
 SHOPIFY_DISPLAY_COLUMNS = [
-    "orderUtmSource",
+    "order_utm_source",
     "补充归因",
     "orderUtmMedium",
     "orderUtmCampaign",
@@ -89,6 +90,9 @@ def _load_shopify_report(path: Path, *, site: str, include_site: bool = True) ->
 def _shopify_rows_frame(payload: list[dict], *, site: str, include_site: bool = True) -> pd.DataFrame:
     if not payload:
         return _empty_shopify_frame(site=site if include_site else "")
+
+    for row in payload:
+        read_order_utm_source(row)
 
     df = pd.json_normalize(payload)
     result = pd.DataFrame({col: _series(df, col) for col in SHOPIFY_DISPLAY_COLUMNS})

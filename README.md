@@ -108,6 +108,8 @@ Impact、Awin-DE、Awin-UK 对账会查询 DTC 表
 - Impact 使用订单名称去掉 `#` 对齐 OID；Awin 使用数字订单 ID 对齐 extra，均限定店铺。
 - 只采用数据库 `last_visit_utm_source` 中的 `impact` / `awin`（忽略大小写和首尾空格）。
 - 补充归因有值时优先用于匹配判断，否则沿用 Shopify 原归因；原归因列保留供对照。
+- Shopify 来源字段统一为 `order_utm_source`，只取 `customerJourneySummary.lastVisit.utmParameters.source`（末次访问）；末次为空时保持为空，不回退首次访问。该字段用于原归因展示、联盟筛选及订单匹配；补充归因优先级不变。
+- 旧版 `orderUtmSource` 缓存可能含首次访问回退，无法直接改名恢复正确口径。更新后须重新拉取 Shopify 全量及联盟数据：`affiliate-report fetch shopify --year 2026 --month 11 --report all`（按实际月份调整），之后才可使用 `--skip-fetch`。
 - Shopify 全量明细及 `impact-shopify`、`awin-shopify` 表也展示「补充归因」。联盟 Shopify 表取并集：原 Shopify 归因或补充归因为该联盟即保留，包括原归因为其他渠道、数据库补充为联盟的订单；原归因与补充归因跨联盟时，两张表均保留以供比较。相同订单事件不因两种来源同时命中而重复加入，原有订单/退款行保持完整。
 - 生成 Excel 时从全量 `sales_attribution` 重建以上并集，`--skip-fetch` 也适用，不依赖旧的联盟筛选文件；审单匹配仍以补充归因优先。
 - 匹配结果继续进入既有 Action 规则和 Summary；退款、佣金、专属码规则的优先级不变。

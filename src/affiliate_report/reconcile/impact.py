@@ -179,7 +179,7 @@ def _match_row(
     if shopify is None and supplement is None:
         return empty
 
-    attribution = (shopify.utm_source or "").strip() if shopify else ""
+    attribution = (shopify.order_utm_source or "").strip() if shopify else ""
     fields = {
         **empty,
         "attribution": attribution,

@@ -5,6 +5,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 import pandas as pd
+from affiliate_report.shopify_attribution import read_order_utm_source
 
 # Column order aligned with Petlibro CJ-Shopify / Sales Attribution-US sheets.
 ATTRIBUTION_COLUMNS = [
@@ -39,6 +40,9 @@ def preprocess_shopify_attribution(
     if not payload:
         return _empty_frame(period_label, report=report, site=site)
 
+    for row in payload:
+        read_order_utm_source(row)
+
     df = pd.json_normalize(payload)
     result = pd.DataFrame(
         {
@@ -46,7 +50,7 @@ def preprocess_shopify_attribution(
             "site": site,
             "report": report,
             "period": period_label,
-            "order_utm_source": df.get("orderUtmSource", pd.Series([pd.NA] * len(df))),
+            "order_utm_source": df.get("order_utm_source", pd.Series([pd.NA] * len(df))),
             "补充归因": df.get("补充归因", pd.Series([""] * len(df))),
             "order_utm_medium": df.get("orderUtmMedium", pd.Series([pd.NA] * len(df))),
             "order_utm_campaign": df.get("orderUtmCampaign", pd.Series([pd.NA] * len(df))),

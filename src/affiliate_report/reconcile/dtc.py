@@ -9,6 +9,7 @@ from typing import Iterable
 import pymysql
 
 from affiliate_report.config import PROJECT_ROOT
+from affiliate_report.shopify_attribution import read_order_utm_source
 from dotenv import load_dotenv
 
 TABLE = "dwd_wb_shopify_orders_original_sku_detail_di"
@@ -35,6 +36,8 @@ def supplement_shopify_rows(
     rows: list[dict], *, site: str, index: DtcIndex | None = None,
 ) -> list[dict]:
     """Enrich the full Shopify set before any affiliate filtering, preserving events."""
+    for row in rows:
+        read_order_utm_source(row)
     if index is None:
         index = load_attribution({site: [r.get("orderId") or "" for r in rows]}, key_type="order_id")
     result = []
@@ -51,7 +54,7 @@ def select_shopify_affiliate_rows(
     expected = source.strip().lower()
     original = (original_source or os.getenv(f"SHOPIFY_{expected.upper()}_UTM_SOURCE") or expected).strip().lower()
     return [row for row in rows if (
-        str(row.get("orderUtmSource") or "").strip().lower() == original
+        (read_order_utm_source(row) or "").lower() == original
         or str(row.get("补充归因") or "").strip().lower() == expected
     )]
 

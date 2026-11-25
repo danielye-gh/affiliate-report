@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from affiliate_report.config import RAW_DIR
+from affiliate_report.shopify_attribution import read_order_utm_source
 
 # shopify是否退款 values (only set when Shopify match succeeds):
 #   "0" = no refund, "1" = full refund, "2" = partial refund
@@ -52,14 +53,14 @@ def format_refund_amount(amount: Decimal) -> str:
 class ShopifyOrderIdMatch:
     order_id: str
     oid: str
-    utm_source: str | None
+    order_utm_source: str | None
     has_refund: bool
     discount_code: str = ""
     refund_amount: Decimal = Decimal("0")
     refund_status: str = REFUND_NONE
 
-    def matches_utm_source(self, expected: str) -> bool:
-        return (self.utm_source or "").strip().lower() == expected.strip().lower()
+    def matches_order_utm_source(self, expected: str) -> bool:
+        return (self.order_utm_source or "").strip().lower() == expected.strip().lower()
 
     @property
     def refund_amount_cell(self) -> str:
@@ -70,14 +71,14 @@ class ShopifyOrderIdMatch:
 class ShopifyOidMatch:
     oid: str
     order_id: str
-    utm_source: str | None
+    order_utm_source: str | None
     has_refund: bool
     discount_code: str = ""
     refund_amount: Decimal = Decimal("0")
     refund_status: str = REFUND_NONE
 
-    def matches_utm_source(self, expected: str) -> bool:
-        return (self.utm_source or "").strip().lower() == expected.strip().lower()
+    def matches_order_utm_source(self, expected: str) -> bool:
+        return (self.order_utm_source or "").strip().lower() == expected.strip().lower()
 
     @property
     def refund_amount_cell(self) -> str:
@@ -111,7 +112,7 @@ def load_shopify_oid_index(raw_path: Path) -> dict[str, ShopifyOidMatch]:
 
         orders[oid] = {
             "order_id": str(row.get("orderId") or "").strip(),
-            "utm_source": row.get("orderUtmSource"),
+            "order_utm_source": read_order_utm_source(row),
             "discount_code": _row_discount_code(row),
             "net_sales": _parse_money(row.get("netSales")),
         }
@@ -126,7 +127,7 @@ def load_shopify_oid_index(raw_path: Path) -> dict[str, ShopifyOidMatch]:
         index[oid] = ShopifyOidMatch(
             oid=oid,
             order_id=order_id,
-            utm_source=info["utm_source"],
+            order_utm_source=info["order_utm_source"],
             has_refund=refund_status in REFUND_STATUSES,
             discount_code=info["discount_code"],
             refund_amount=refund_amount,
@@ -162,7 +163,7 @@ def load_shopify_order_id_index(raw_path: Path) -> dict[str, ShopifyOrderIdMatch
 
         orders[order_id] = {
             "oid": oid,
-            "utm_source": row.get("orderUtmSource"),
+            "order_utm_source": read_order_utm_source(row),
             "discount_code": _row_discount_code(row),
             "net_sales": _parse_money(row.get("netSales")),
         }
@@ -174,7 +175,7 @@ def load_shopify_order_id_index(raw_path: Path) -> dict[str, ShopifyOrderIdMatch
         index[order_id] = ShopifyOrderIdMatch(
             order_id=order_id,
             oid=info["oid"],
-            utm_source=info["utm_source"],
+            order_utm_source=info["order_utm_source"],
             has_refund=refund_status in REFUND_STATUSES,
             discount_code=info["discount_code"],
             refund_amount=refund_amount,

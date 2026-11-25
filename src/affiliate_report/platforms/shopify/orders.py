@@ -6,6 +6,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from affiliate_report.models import MonthRange
+from affiliate_report.shopify_attribution import read_order_utm_source
 from affiliate_report.platforms.shopify.client import ShopifyClient
 from affiliate_report.platforms.shopify.config import ShopifyConfig, UtmSourceFilter
 
@@ -31,9 +32,6 @@ query OrdersForMonth($query: String!, $cursor: String) {
         discountCodes
         customerJourneySummary {
           lastVisit {
-            utmParameters { source medium campaign }
-          }
-          firstVisit {
             utmParameters { source medium campaign }
           }
         }
@@ -87,7 +85,7 @@ class ShopifyOrdersAPI:
         return [
             row
             for row in rows
-            if utm_filter.matches(row.get("orderUtmSource"))
+            if utm_filter.matches(read_order_utm_source(row))
         ]
 
     def _list_orders(self, month: MonthRange) -> list[dict[str, Any]]:
@@ -194,7 +192,7 @@ def _attribution_row(
 ) -> dict[str, Any]:
     sales = net_sales or Decimal("0")
     return {
-        "orderUtmSource": utm.get("source"),
+        "order_utm_source": utm.get("source"),
         "orderUtmMedium": utm.get("medium"),
         "orderUtmCampaign": utm.get("campaign"),
         "orderId": order_id,
@@ -233,16 +231,9 @@ def _format_discount_codes(raw: object) -> str:
 
 def _extract_utm(order: dict[str, Any]) -> dict[str, str | None]:
     journey = order.get("customerJourneySummary") or {}
-    for visit_key in ("lastVisit", "firstVisit"):
-        visit = journey.get(visit_key) or {}
-        params = visit.get("utmParameters") or {}
-        if any(params.get(k) for k in ("source", "medium", "campaign")):
-            return {
-                "source": params.get("source"),
-                "medium": params.get("medium"),
-                "campaign": params.get("campaign"),
-            }
-    return {"source": None, "medium": None, "campaign": None}
+    visit = journey.get("lastVisit") or {}
+    params = visit.get("utmParameters") or {}
+    return {key: params.get(key) for key in ("source", "medium", "campaign")}
 
 
 def _money_amount(money_set: dict[str, Any] | None) -> Decimal | None:
