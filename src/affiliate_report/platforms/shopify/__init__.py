@@ -12,6 +12,7 @@ from affiliate_report.platforms.shopify.client import ShopifyClient
 from affiliate_report.platforms.shopify.config import ShopifyConfig, ShopifySiteConfig
 from affiliate_report.platforms.shopify.orders import ShopifyOrdersAPI
 from affiliate_report.preprocess.shopify import preprocess_shopify_attribution
+from affiliate_report.reconcile.dtc import supplement_shopify_rows, select_shopify_affiliate_rows
 
 REPORT_SALES_ATTRIBUTION = "sales-attribution"
 REPORT_CJ_SHOPIFY = "cj-shopify"  # kept for re-enable / explicit --report
@@ -71,14 +72,20 @@ class ShopifyPlatformClient(AffiliatePlatformClient):
         for site_cfg in site_configs:
             with self._http_client(site_cfg) as http:
                 api = ShopifyOrdersAPI(http, self.config)
-                all_rows = api.list_attribution_rows_for_month(month)
+                all_rows = supplement_shopify_rows(
+                    api.list_attribution_rows_for_month(month), site=site_cfg.label,
+                )
 
                 report_rows = {
                     REPORT_SALES_ATTRIBUTION: all_rows,
                     # CJ disabled — uncomment to re-enable default fetch
                     REPORT_CJ_SHOPIFY: api.filter_rows(all_rows, self.config.cj_utm),
-                    REPORT_IMPACT_SHOPIFY: api.filter_rows(all_rows, self.config.impact_utm),
-                    REPORT_AWIN_SHOPIFY: api.filter_rows(all_rows, self.config.awin_utm),
+                    REPORT_IMPACT_SHOPIFY: select_shopify_affiliate_rows(
+                        all_rows, "impact", original_source=self.config.impact_utm.source,
+                    ),
+                    REPORT_AWIN_SHOPIFY: select_shopify_affiliate_rows(
+                        all_rows, "awin", original_source=self.config.awin_utm.source,
+                    ),
                 }
 
                 for report_name in selected:

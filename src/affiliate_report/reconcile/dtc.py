@@ -31,13 +31,36 @@ class DtcIndex:
     by_order_id: dict[tuple[str, str], DtcAttribution] = field(default_factory=dict)
 
 
+def supplement_shopify_rows(
+    rows: list[dict], *, site: str, index: DtcIndex | None = None,
+) -> list[dict]:
+    """Enrich the full Shopify set before any affiliate filtering, preserving events."""
+    if index is None:
+        index = load_attribution({site: [r.get("orderId") or "" for r in rows]}, key_type="order_id")
+    result = []
+    for row in rows:
+        match = index.by_order_id.get((STORE_NAMES[site], str(row.get("orderId") or "").strip()))
+        result.append({**row, "补充归因": match.source if match else ""})
+    return result
+
+
+def select_shopify_affiliate_rows(
+    rows: list[dict], source: str, *, original_source: str | None = None,
+) -> list[dict]:
+    """Keep the union of original and supplementary attribution, once per input event."""
+    expected = source.strip().lower()
+    original = (original_source or os.getenv(f"SHOPIFY_{expected.upper()}_UTM_SOURCE") or expected).strip().lower()
+    return [row for row in rows if (
+        str(row.get("orderUtmSource") or "").strip().lower() == original
+        or str(row.get("补充归因") or "").strip().lower() == expected
+    )]
+
+
 def build_index(rows: Iterable[dict]) -> DtcIndex:
-    """Latest eligible snapshot wins; equally recent conflicting sources fail loudly."""
+    """Select the latest snapshot before checking its eligibility as a supplement."""
     latest: dict[tuple[str, str], tuple[tuple[str, ...], dict[str, DtcAttribution]]] = {}
     for row in rows:
         source = str(row.get("last_visit_utm_source") or "").strip().lower()
-        if source not in {"impact", "awin"}:
-            continue
         store = str(row["store_name"]).strip()
         order_id = str(row["order_id"]).strip()
         oid = str(row.get("order_name") or "").strip().lstrip("#")
@@ -53,6 +76,8 @@ def build_index(rows: Iterable[dict]) -> DtcIndex:
         if len(sources) != 1:
             raise ValueError(f"DTC attribution conflict for {store} order {order_id}")
         match = next(iter(sources.values()))
+        if match.source not in {"impact", "awin"}:
+            continue
         result.by_order_id[store, order_id] = match
         if match.oid:
             key = (store, match.oid)
@@ -101,8 +126,7 @@ def load_attribution(keys_by_site: dict[str, Iterable[str]], *, key_type: str) -
                     cur.execute(
                         f"SELECT store_name, order_id, order_name, last_visit_utm_source, "
                         f"_etl_loaded_at, sale_happened_at, order_updated_date FROM `{TABLE}` "
-                        f"WHERE store_name=%s AND `{column}` IN ({placeholders}) "
-                        "AND LOWER(TRIM(last_visit_utm_source)) IN ('impact','awin')",
+                        f"WHERE store_name=%s AND `{column}` IN ({placeholders})",
                         [store, *batch],
                     )
                     rows.extend(cur.fetchall())

@@ -7,11 +7,13 @@ import pandas as pd
 
 from affiliate_report.config import RAW_DIR
 from affiliate_report.reconcile.formatting import format_decimal_cell
+from affiliate_report.reconcile.dtc import supplement_shopify_rows, select_shopify_affiliate_rows
 
 SHOPIFY_SITES = ("us", "de", "uk", "fr", "au")
 
 SHOPIFY_DISPLAY_COLUMNS = [
     "orderUtmSource",
+    "补充归因",
     "orderUtmMedium",
     "orderUtmCampaign",
     "orderId",
@@ -38,28 +40,31 @@ REPORT_FOLDERS = {
 
 def build_shopify_workbook_sheets(period_label: str) -> dict[str, pd.DataFrame]:
     sheets: dict[str, pd.DataFrame] = {}
+    rows_by_site: dict[str, list[dict]] = {}
     for site in SHOPIFY_SITES:
         path = _shopify_report_path(site, "sales_attribution", period_label)
         if not path.is_file():
             continue
-        sheets[f"sales_attribution-{site}"] = _load_shopify_report(
-            path, site=site, include_site=False
+        with path.open(encoding="utf-8") as f:
+            rows_by_site[site] = supplement_shopify_rows(json.load(f), site=site)
+        sheets[f"sales_attribution-{site}"] = _shopify_rows_frame(
+            rows_by_site[site], site=site, include_site=False
         )
     if not sheets:
         raise FileNotFoundError(
             f"No Shopify sales_attribution reports found for period {period_label}"
         )
 
-    for sheet_name, folder in (
+    for sheet_name, source in (
         # ("cj-shopify", "cj_shopify"),  # CJ disabled — uncomment to re-enable
-        ("impact-shopify", "impact_shopify"),
-        ("awin-shopify", "awin_shopify"),
+        ("impact-shopify", "impact"),
+        ("awin-shopify", "awin"),
     ):
         frames = []
-        for site in SHOPIFY_SITES:
-            path = _shopify_report_path(site, folder, period_label)
-            if path.is_file():
-                frames.append(_load_shopify_report(path, site=site))
+        for site, rows in rows_by_site.items():
+            frames.append(_shopify_rows_frame(
+                select_shopify_affiliate_rows(rows, source), site=site,
+            ))
         sheets[sheet_name] = (
             pd.concat(frames, ignore_index=True) if frames else _empty_shopify_frame()
         )
@@ -78,6 +83,10 @@ def _load_shopify_report(path: Path, *, site: str, include_site: bool = True) ->
     with path.open(encoding="utf-8") as f:
         payload = json.load(f)
 
+    return _shopify_rows_frame(payload, site=site, include_site=include_site)
+
+
+def _shopify_rows_frame(payload: list[dict], *, site: str, include_site: bool = True) -> pd.DataFrame:
     if not payload:
         return _empty_shopify_frame(site=site if include_site else "")
 

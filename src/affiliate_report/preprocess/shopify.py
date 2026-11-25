@@ -9,6 +9,7 @@ import pandas as pd
 # Column order aligned with Petlibro CJ-Shopify / Sales Attribution-US sheets.
 ATTRIBUTION_COLUMNS = [
     "order_utm_source",
+    "补充归因",
     "order_utm_medium",
     "order_utm_campaign",
     "order_id",
@@ -46,6 +47,7 @@ def preprocess_shopify_attribution(
             "report": report,
             "period": period_label,
             "order_utm_source": df.get("orderUtmSource", pd.Series([pd.NA] * len(df))),
+            "补充归因": df.get("补充归因", pd.Series([""] * len(df))),
             "order_utm_medium": df.get("orderUtmMedium", pd.Series([pd.NA] * len(df))),
             "order_utm_campaign": df.get("orderUtmCampaign", pd.Series([pd.NA] * len(df))),
             "order_id": df.get("orderId", pd.Series([pd.NA] * len(df))).astype(str),
