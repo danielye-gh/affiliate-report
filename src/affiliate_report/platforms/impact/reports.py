@@ -43,8 +43,10 @@ class ImpactReportsAPI:
         export_path = self._client._path(f"/ReportExport/{report_handle}")
         queued = self._client.get_json(export_path, params=params)
 
-        status = queued.get("Status", "")
-        if status and status not in {"QUEUED", "OK"}:
+        # Identical export requests can reuse an existing job. CACHED describes
+        # that reuse; check the job itself before downloading its result.
+        status = str(queued.get("Status") or "").strip().upper()
+        if status and status not in {"QUEUED", "OK", "CACHED"}:
             raise ImpactAPIError(f"Unexpected export queue status: {status}", body=queued)
 
         queued_uri = queued.get("QueuedUri")
@@ -52,6 +54,8 @@ class ImpactReportsAPI:
             # Some responses may already include downloadable ResultUri
             result_uri = queued.get("ResultUri")
             if result_uri:
+                if "/Jobs/" in _normalize(result_uri):
+                    return self._client.download_job_result(queued)
                 return self._client.download(_normalize(result_uri))
             raise ImpactAPIError("ReportExport response missing QueuedUri", body=queued)
 
